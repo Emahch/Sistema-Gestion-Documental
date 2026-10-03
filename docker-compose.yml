@@ -1,0 +1,100 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: sgd-mongo
+    restart: unless-stopped
+    # Mongo exige keyFile con auth + replica set: se genera una vez y persiste en volumen.
+    entrypoint: ["bash", "-c", "if [ ! -f /etc/mongo-key/keyfile ]; then mkdir -p /etc/mongo-key && openssl rand -base64 756 > /etc/mongo-key/keyfile && chmod 400 /etc/mongo-key/keyfile && chown mongodb:mongodb /etc/mongo-key/keyfile; fi; exec docker-entrypoint.sh mongod --replSet ${MONGO_REPLICA_SET:-rs0} --keyFile /etc/mongo-key/keyfile --bind_ip_all"]
+    env_file:
+      - .env
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-admin123}
+      MONGO_INITDB_DATABASE: ${MONGO_DB:-gestion_documental}
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    volumes:
+      - mongo-data:/data/db
+      - mongo-key:/etc/mongo-key
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "-u", "${MONGO_ROOT_USER:-admin}", "-p", "${MONGO_ROOT_PASSWORD:-admin123}", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mongo-init:
+    image: mongo:7
+    container_name: sgd-mongo-init
+    depends_on:
+      mongo:
+        condition: service_healthy
+    env_file:
+      - .env
+    entrypoint: ["bash", "-c"]
+    command:
+      - |
+        URI="mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-admin123}@mongo:27017/admin";
+        echo "Configurando replica set '${MONGO_REPLICA_SET:-rs0}'...";
+        for i in $$(seq 1 30); do
+          mongosh "$$URI" --quiet --eval "try { rs.status(); print('replica set ya iniciado, sin cambios'); } catch (e) { try { rs.initiate({_id:'${MONGO_REPLICA_SET:-rs0}',members:[{_id:0,host:'mongo:27017'}]}); print('replica set iniciado'); } catch (initErr) { if (String(initErr).includes('already initialized')) print('replica set ya iniciado, sin cambios'); else throw initErr; } }" && break || echo "Mongo aún no disponible (intento $$i/30)...";
+          sleep 2;
+        done;
+        mongosh "$$URI" --quiet --eval "rs.status().ok" || true
+    restart: "no"
+
+  api:
+    build: ./api
+    container_name: sgd-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: development
+      PORT: ${API_PORT:-3000}
+      MONGO_URI: mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-admin123}@mongo:27017/${MONGO_DB:-gestion_documental}?authSource=admin&replicaSet=${MONGO_REPLICA_SET:-rs0}
+      CLIENT_URL: http://localhost:${CLIENT_PORT:-4200}
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - ./api/src:/usr/src/app/src
+      - ./api/package.json:/usr/src/app/package.json
+      - ./api/package-lock.json:/usr/src/app/package-lock.json
+      - api-node-modules:/usr/src/app/node_modules
+    ports:
+      - "${API_PORT:-3000}:3000"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      mongo-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  client:
+    build: ./client
+    container_name: sgd-client
+    restart: unless-stopped
+    environment:
+      NG_CLI_ANALYTICS: "false"
+      CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "${CLIENT_PORT:-4200}:4200"
+    volumes:
+      - ./client/src:/app/src
+      - ./client/public:/app/public
+      - ./client/angular.json:/app/angular.json
+      - ./client/tsconfig.json:/app/tsconfig.json
+      - ./client/tsconfig.app.json:/app/tsconfig.app.json
+      - ./client/package.json:/app/package.json
+      - ./client/package-lock.json:/app/package-lock.json
+      - client-node-modules:/app/node_modules
+    depends_on:
+      - api
+
+volumes:
+  mongo-data:
+  mongo-key:
+  api-node-modules:
+  client-node-modules:

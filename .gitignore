@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.env
+!.env.example
+npm-debug.log*
+*.log
+.git/
+.vscode/
+.angular/
+coverage/
+api/node_modules/
+client/node_modules/
+client/dist/
+mongo-data/
+*.tgz
+.DS_Store
+Thumbs.db
