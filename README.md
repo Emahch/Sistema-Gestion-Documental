@@ -10,6 +10,7 @@ docker compose up --build
 - API: http://localhost:3000/api/health (nodemon, recarga al guardar en `api/src`)
 - Client: http://localhost:4200 (ng serve, recarga al guardar en `client/src`)
 - Mongo/Mongoose: localhost:27017, replica set `rs0` (transacciones y change streams)
+- API docs (Swagger): http://localhost:3000/api/docs
 
 
 ## Reiniciar app sin afectar base de datos

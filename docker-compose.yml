@@ -58,6 +58,7 @@ services:
       - ./api/src:/usr/src/app/src
       - ./api/package.json:/usr/src/app/package.json
       - ./api/package-lock.json:/usr/src/app/package-lock.json
+      - ./docs:/usr/src/docs
       - api-node-modules:/usr/src/app/node_modules
     ports:
       - "${API_PORT:-3000}:3000"
