@@ -6,22 +6,35 @@
   "type": "commonjs",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "nodemon src/server.js",
-    "db:indexes": "node src/scripts/ensure-indexes.js",
-    "db:diagram": "node src/scripts/db-diagram.js"
+    "dev": "nodemon src/server.ts",
+    "typecheck": "tsc --noEmit",
+    "db:indexes": "ts-node --transpile-only src/scripts/ensure-indexes.ts",
+    "db:diagram": "ts-node --transpile-only src/scripts/db-diagram.ts",
+    "db:seed-admin": "ts-node --transpile-only src/scripts/seed-admin.ts"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.2",
     "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.3",
     "mongoose": "^8.9.0",
     "morgan": "^1.10.0",
     "swagger-jsdoc": "^6.3.0",
     "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
-    "nodemon": "^3.1.9"
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^26.6.5",
+    "@types/swagger-jsdoc": "^6.0.4",
+    "@types/swagger-ui-express": "^4.1.8",
+    "nodemon": "^3.1.9",
+    "ts-node": "^10.9.2",
+    "typescript": "~5.9.2"
   },
   "engines": {
     "node": ">=20"

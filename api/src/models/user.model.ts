@@ -1,6 +1,7 @@
-const mongoose = require('mongoose');
+import { Schema, model } from 'mongoose';
+import type { User } from '../types/user';
 
-const userSchema = new mongoose.Schema(
+const userSchema = new Schema<User>(
   {
     email: { type: String, required: true, trim: true },
     emailNormalized: { type: String, required: true, lowercase: true, trim: true },
@@ -18,6 +19,5 @@ const userSchema = new mongoose.Schema(
 userSchema.index({ emailNormalized: 1 }, { unique: true });
 userSchema.index({ isActive: 1, role: 1 });
 
-const User = mongoose.model('User', userSchema);
+export const UserModel = model<User>('User', userSchema);
 
-module.exports = { User };

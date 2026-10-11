@@ -1,8 +1,9 @@
-const mongoose = require('mongoose');
+import { Schema, Types, model } from 'mongoose';
+import type { ActivityLog } from '../types/activity-log';
 
-const activityLogSchema = new mongoose.Schema(
+const activityLogSchema = new Schema<ActivityLog>(
   {
-    userId: { type: mongoose.Schema.Types.ObjectId, required: true },
+    userId: { type: Schema.Types.ObjectId, required: true },
     action: {
       type: String,
       enum: [
@@ -27,10 +28,10 @@ const activityLogSchema = new mongoose.Schema(
     },
     status: { type: String, enum: ['success', 'error'], required: true },
     resourceType: { type: String, required: true },
-    resourceId: { type: mongoose.Schema.Types.ObjectId, required: true },
-    resourceSnapshot: { type: mongoose.Schema.Types.Mixed, default: {} },
-    details: { type: mongoose.Schema.Types.Mixed, default: {} },
-    affectedUserIds: { type: [mongoose.Schema.Types.ObjectId], default: [] },
+    resourceId: { type: Schema.Types.ObjectId, required: true },
+    resourceSnapshot: { type: Schema.Types.Mixed, default: {} },
+    details: { type: Schema.Types.Mixed, default: {} },
+    affectedUserIds: { type: [Schema.Types.ObjectId], default: [] },
     timestamp: { type: Date, default: Date.now },
   },
   { collection: 'activity_logs', timestamps: false }
@@ -42,6 +43,5 @@ activityLogSchema.index({ timestamp: -1 });
 activityLogSchema.index({ action: 1, status: 1, timestamp: -1 });
 activityLogSchema.index({ affectedUserIds: 1, timestamp: -1 });
 
-const ActivityLog = mongoose.model('ActivityLog', activityLogSchema);
+export const ActivityLogModel = model<ActivityLog>('ActivityLog', activityLogSchema);
 
-module.exports = { ActivityLog };

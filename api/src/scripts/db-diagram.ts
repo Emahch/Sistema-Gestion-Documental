@@ -1,13 +1,31 @@
-const fs = require('fs');
-const path = require('path');
-const { connectDB, mongoose } = require('../config/db');
-const { User } = require('../models/user.model');
-const { Folder } = require('../models/folder.model');
-const { File } = require('../models/file.model');
-const { Share } = require('../models/share.model');
-const { ActivityLog } = require('../models/activity-log.model');
+import fs from 'fs';
+import path from 'path';
+import { connectDB, mongoose } from '../config/db';
+import { UserModel } from '../models/user.model';
+import { FolderModel } from '../models/folder.model';
+import { FileModel } from '../models/file.model';
+import { ShareModel } from '../models/share.model';
+import { ActivityLogModel } from '../models/activity-log.model';
 
-const MODELS = [User, Folder, File, Share, ActivityLog];
+interface SchemaField {
+  instance: string;
+  $isMongooseDocumentArray?: boolean;
+  options?: { required?: boolean };
+}
+
+interface DiagramModel {
+  collection: { name: string };
+  schema: { paths: Record<string, SchemaField> };
+}
+
+interface IndexInfo {
+  name?: string;
+  key: Record<string, unknown>;
+  unique?: boolean;
+  partialFilterExpression?: Record<string, unknown>;
+}
+
+const MODELS = [UserModel, FolderModel, FileModel, ShareModel, ActivityLogModel];
 
 const RELATIONS = [
   ['files', 'ownerId', 'users'],
@@ -22,7 +40,7 @@ const RELATIONS = [
   ['activity_logs', 'resourceId', 'files|folders|users'],
 ];
 
-function mermaidType(instance) {
+function mermaidType(instance: string): string {
   switch (instance) {
     case 'ObjectId':
       return 'ObjectId';
@@ -43,7 +61,7 @@ function mermaidType(instance) {
   }
 }
 
-function describeSchema(model) {
+function describeSchema(model: DiagramModel): string {
   return Object.entries(model.schema.paths)
     .filter(([name]) => name !== '__v')
     .map(([name, type]) => {
@@ -53,7 +71,7 @@ function describeSchema(model) {
     .join('\n');
 }
 
-function describeIndex(index) {
+function describeIndex(index: IndexInfo): string {
   const keys = Object.entries(index.key)
     .map(([field, order]) => `${field}:${order}`)
     .join(', ');
@@ -66,6 +84,9 @@ function describeIndex(index) {
 async function main() {
   await connectDB();
   const db = mongoose.connection.db;
+  if (!db) {
+    throw new Error('Sin conexión a MongoDB');
+  }
   const lines = [];
   lines.push('# Diagrama ER (generado contra la base viva)');
   lines.push('');

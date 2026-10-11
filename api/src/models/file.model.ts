@@ -1,18 +1,19 @@
-const mongoose = require('mongoose');
+import { Schema, Types, model } from 'mongoose';
+import type { File } from '../types/file';
 
-const fileSchema = new mongoose.Schema(
+const fileSchema = new Schema<File>(
   {
-    ownerId: { type: mongoose.Schema.Types.ObjectId, required: true },
-    folderId: { type: mongoose.Schema.Types.ObjectId, required: true },
+    ownerId: { type: Schema.Types.ObjectId, required: true },
+    folderId: { type: Schema.Types.ObjectId, required: true },
     name: { type: String, required: true },
     nameNormalized: { type: String, required: true },
     mimeType: { type: String, required: true },
     category: { type: String, enum: ['TXT', 'MD'], required: true },
     size: { type: Number, required: true },
-    gridFsId: { type: mongoose.Schema.Types.ObjectId, required: true },
+    gridFsId: { type: Schema.Types.ObjectId, required: true },
     isDeleted: { type: Boolean, default: false },
     deletedAt: { type: Date, default: undefined },
-    deletionId: { type: mongoose.Schema.Types.ObjectId, default: undefined },
+    deletionId: { type: Schema.Types.ObjectId, default: undefined },
     isDeletionRoot: { type: Boolean, default: false },
   },
   { timestamps: true }
@@ -33,6 +34,5 @@ fileSchema.index(
 );
 fileSchema.index({ deletionId: 1 }, { partialFilterExpression: { isDeleted: true } });
 
-const File = mongoose.model('File', fileSchema);
+export const FileModel = model<File>('File', fileSchema);
 
-module.exports = { File };

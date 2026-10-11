@@ -11,6 +11,7 @@ docker compose up --build
 - Client: http://localhost:4200 (ng serve, recarga al guardar en `client/src`)
 - Mongo/Mongoose: localhost:27017, replica set `rs0` (transacciones y change streams)
 - API docs (Swagger): http://localhost:3000/api/docs
+- Admin inicial: `docker compose exec api npm run db:seed-admin` (`admin@docsdrive.local` / `Admin123*`)
 
 
 ## Reiniciar app sin afectar base de datos

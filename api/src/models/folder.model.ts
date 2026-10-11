@@ -1,17 +1,18 @@
-const mongoose = require('mongoose');
+import { Schema, Types, model } from 'mongoose';
+import type { Folder } from '../types/folder';
 
-const folderSchema = new mongoose.Schema(
+const folderSchema = new Schema<Folder>(
   {
-    ownerId: { type: mongoose.Schema.Types.ObjectId, required: true },
-    createdBy: { type: mongoose.Schema.Types.ObjectId, required: true },
-    parentId: { type: mongoose.Schema.Types.ObjectId, default: null },
+    ownerId: { type: Schema.Types.ObjectId, required: true },
+    createdBy: { type: Schema.Types.ObjectId, required: true },
+    parentId: { type: Schema.Types.ObjectId, default: null },
     isRoot: { type: Boolean, default: false },
     name: { type: String, required: true },
     nameNormalized: { type: String, required: true },
-    ancestors: { type: [mongoose.Schema.Types.ObjectId], default: [] },
+    ancestors: { type: [Schema.Types.ObjectId], default: [] },
     isDeleted: { type: Boolean, default: false },
     deletedAt: { type: Date, default: undefined },
-    deletionId: { type: mongoose.Schema.Types.ObjectId, default: undefined },
+    deletionId: { type: Schema.Types.ObjectId, default: undefined },
     isDeletionRoot: { type: Boolean, default: false },
   },
   { timestamps: true }
@@ -30,6 +31,5 @@ folderSchema.index(
 );
 folderSchema.index({ deletionId: 1 }, { partialFilterExpression: { isDeleted: true } });
 
-const Folder = mongoose.model('Folder', folderSchema);
+export const FolderModel = model<Folder>('Folder', folderSchema);
 
-module.exports = { Folder };

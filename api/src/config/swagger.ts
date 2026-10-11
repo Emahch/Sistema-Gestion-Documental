@@ -1,4 +1,4 @@
-const swaggerJsdoc = require('swagger-jsdoc');
+import swaggerJsdoc from 'swagger-jsdoc';
 
 const options = {
   definition: {
@@ -10,18 +10,21 @@ const options = {
     },
     servers: [{ url: 'http://localhost:3000' }],
     components: {
+      securitySchemes: {
+        bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+      },
       schemas: {
         Error: {
           type: 'object',
           required: ['message'],
           properties: {
-            message: { type: 'string', example: 'Documento no encontrado' },
+            message: { type: 'string', example: 'Error en la solicitud' },
           },
         },
       },
     },
   },
-  apis: ['./src/routes/*.js', './src/server.js'],
+  apis: ['./src/routes/*.ts', './src/server.ts'],
 };
 
-module.exports = { swaggerSpec: swaggerJsdoc(options) };
+export const swaggerSpec = swaggerJsdoc(options);

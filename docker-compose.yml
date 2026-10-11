@@ -58,6 +58,8 @@ services:
       - ./api/src:/usr/src/app/src
       - ./api/package.json:/usr/src/app/package.json
       - ./api/package-lock.json:/usr/src/app/package-lock.json
+      - ./api/nodemon.json:/usr/src/app/nodemon.json
+      - ./api/tsconfig.json:/usr/src/app/tsconfig.json
       - ./docs:/usr/src/docs
       - api-node-modules:/usr/src/app/node_modules
     ports:
