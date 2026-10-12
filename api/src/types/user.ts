@@ -29,3 +29,17 @@ export interface PublicUser {
   storage: User['storage'];
   createdAt: Date;
 }
+
+export interface ListUsersQuery {
+  page?: unknown;
+  limit?: unknown;
+  q?: unknown;
+  role?: unknown;
+}
+
+export interface PagedUsers {
+  data: PublicUser[];
+  total: number;
+  page: number;
+  limit: number;
+}
