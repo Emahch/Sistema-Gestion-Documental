@@ -10,8 +10,6 @@ import { BadRequestError, ConflictError, HttpError, NotFoundError } from '../err
 
 const ROOT_FOLDER_NAME = 'Mi unidad';
 
-
-
 function toPage(value: unknown, fallback: number): number {
   const parsed = parseInt(String(value ?? ''), 10);
   return Number.isNaN(parsed) || parsed < 1 ? fallback : Math.min(parsed, 100);
