@@ -57,6 +57,38 @@
   margin: 0.25rem 0 0;
 }
 
+.hint {
+  color: var(--text-color-secondary);
+}
+
+.row-actions {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.storage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0.5rem 0;
+}
+
+.storage-list > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.storage-list dt {
+  color: var(--text-color-secondary);
+  font-weight: 600;
+}
+
+.storage-list dd {
+  margin: 0;
+  font-weight: 600;
+}
+
 .w-full {
   width: 100%;
 }

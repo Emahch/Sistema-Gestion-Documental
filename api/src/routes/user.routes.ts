@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { UserController } from '../controllers/user.controller';
 import { auth } from '../middlewares/auth';
 import { requireAdmin } from '../middlewares/require-admin';
+import { requireSelfOrAdmin } from '../middlewares/require-self-or-admin';
 
 const router = Router();
 const controller = new UserController();
@@ -166,5 +167,209 @@ router.patch('/me', auth, controller.updateSelf);
  *             schema: { $ref: '#/components/schemas/Error' }
  */
 router.get('/', auth, requireAdmin, controller.list);
+
+/**
+ * @openapi
+ * /api/users/{id}/status:
+ *   patch:
+ *     summary: Activa o desactiva un usuario (solo admin)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [isActive]
+ *             properties:
+ *               isActive: { type: boolean }
+ *     responses:
+ *       200:
+ *         description: Estado actualizado
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/User' }
+ *       400:
+ *         description: isActive no es booleano
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ *       401:
+ *         description: Sin token o inactivo
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ *       403:
+ *         description: Se requiere rol de administrador
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ *       404:
+ *         description: Usuario no encontrado
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ */
+router.patch('/:id/status', auth, requireAdmin, controller.setStatus);
+
+/**
+ * @openapi
+ * /api/users/{id}/quota:
+ *   patch:
+ *     summary: Ajusta la cuota de un usuario (solo admin)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [quotaBytes]
+ *             properties:
+ *               quotaBytes:
+ *                 type: number
+ *                 nullable: true
+ *                 description: null significa ilimitada
+ *     responses:
+ *       200:
+ *         description: Cuota actualizada
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/User' }
+ *       400:
+ *         description: Valor inválido (negativo o no numérico)
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ *       401:
+ *         description: Sin token o inactivo
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ *       403:
+ *         description: Se requiere rol de administrador
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ *       404:
+ *         description: Usuario no encontrado
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ */
+router.patch('/:id/quota', auth, requireAdmin, controller.setQuota);
+
+/**
+ * @openapi
+ * /api/users/{id}/storage:
+ *   get:
+ *     summary: Consulta uso, cuota y disponible (admin o propio)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *       - in: query
+ *         name: reconcile
+ *         schema: { type: boolean }
+ *         description: Compara con la suma real de archivos
+ *     responses:
+ *       200:
+ *         description: Estado de almacenamiento
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 usedBytes: { type: integer }
+ *                 quotaBytes: { type: integer, nullable: true }
+ *                 available: { type: integer, nullable: true }
+ *       401:
+ *         description: Sin token o inactivo
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ *       403:
+ *         description: Solo tu propia información o ser admin
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ *       404:
+ *         description: Usuario no encontrado
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ */
+router.get('/:id/storage', auth, requireSelfOrAdmin, controller.storage);
+
+/**
+ * @openapi
+ * /api/users/{id}:
+ *   patch:
+ *     summary: Edita email, rol y/o password de un usuario (solo admin)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email: { type: string }
+ *               password: { type: string, format: password }
+ *               role: { type: string, enum: [admin, user] }
+ *     responses:
+ *       200:
+ *         description: Usuario actualizado
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/User' }
+ *       400:
+ *         description: Datos inválidos o cambio sobre sí mismo
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ *       401:
+ *         description: Sin token o inactivo
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ *       403:
+ *         description: Se requiere rol de administrador
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ *       404:
+ *         description: Usuario no encontrado
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ *       409:
+ *         description: El email ya está registrado
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ */
+router.patch('/:id', auth, requireAdmin, controller.update);
 
 export default router;

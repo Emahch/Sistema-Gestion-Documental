@@ -30,6 +30,7 @@
           <th>Cuota</th>
           <th>Usado</th>
           <th>Creado</th>
+          <th></th>
         </tr>
       </ng-template>
       <ng-template pTemplate="body" let-u>
@@ -38,18 +39,49 @@
           <td><p-tag [value]="u.role" [severity]="u.role === 'admin' ? 'warn' : 'info'" /></td>
           <td><p-tag [value]="u.isActive ? 'Activo' : 'Inactivo'" [severity]="u.isActive ? 'success' : 'danger'" /></td>
           <td>{{ u.storage.quotaBytes === null ? 'Ilimitada' : formatBytes(u.storage.quotaBytes) }}</td>
-          <td>{{ formatBytes(u.storage.usedBytes) }}</td>
+          <td>
+            <p-button [label]="formatBytes(u.storage.usedBytes)" [link]="true" (onClick)="openStorage(u)" />
+          </td>
           <td>{{ u.createdAt | date: 'medium' }}</td>
+          <td class="row-actions">
+            <p-button
+              icon="pi pi-pencil"
+              [text]="true"
+              [rounded]="true"
+              severity="secondary"
+              ariaLabel="Editar usuario"
+              (onClick)="openEdit(u)"
+            />
+            <p-button
+              [icon]="u.isActive ? 'pi pi-ban' : 'pi pi-check-circle'"
+              [text]="true"
+              [rounded]="true"
+              severity="secondary"
+              [disabled]="isSelf(u.id)"
+              [ariaLabel]="u.isActive ? 'Desactivar usuario' : 'Activar usuario'"
+              (onClick)="confirmToggle(u)"
+            />
+            <p-button
+              icon="pi pi-database"
+              [text]="true"
+              [rounded]="true"
+              severity="secondary"
+              ariaLabel="Ajustar cuota"
+              (onClick)="openQuota(u)"
+            />
+          </td>
         </tr>
       </ng-template>
       <ng-template pTemplate="emptymessage">
         <tr>
-          <td colspan="6">No hay usuarios para mostrar.</td>
+          <td colspan="7">No hay usuarios para mostrar.</td>
         </tr>
       </ng-template>
     </p-table>
   </p-card>
 </section>
+
+<p-confirmDialog />
 
 <p-dialog header="Nuevo usuario" [(visible)]="showDialog" [modal]="true" [style]="{ width: '28rem' }">
   <div class="form-grid">
@@ -60,7 +92,7 @@
     <p-password id="u-pass" [ngModel]="newPassword()" (ngModelChange)="newPassword.set($event)" [feedback]="true" [toggleMask]="true" inputStyleClass="w-full" styleClass="w-full" />
 
     <label for="u-role">Rol</label>
-    <p-select id="u-role" [options]="roleOptions" [ngModel]="newRole()" (ngModelChange)="newRole.set($event)" optionLabel="label" optionValue="value" styleClass="w-full" />
+    <p-select id="u-role" [options]="roleOptions" [ngModel]="newRole()" (ngModelChange)="newRole.set($event)" optionLabel="label" optionValue="value" appendTo="body" styleClass="w-full" />
 
     <div class="quota-row">
       <p-checkbox inputId="u-unlimited" [binary]="true" [ngModel]="unlimitedQuota()" (ngModelChange)="unlimitedQuota.set($event)" />
@@ -79,5 +111,81 @@
   <ng-template #footer>
     <p-button label="Cancelar" severity="secondary" [text]="true" (onClick)="showDialog.set(false)" />
     <p-button label="Crear" icon="pi pi-check" [loading]="saving()" (onClick)="save()" />
+  </ng-template>
+</p-dialog>
+
+<p-dialog header="Editar usuario" [(visible)]="showEditDialog" [modal]="true" [style]="{ width: '28rem' }">
+  <div class="form-grid">
+    <label for="e-email">Email *</label>
+    <input pInputText id="e-email" type="email" [ngModel]="editEmail()" (ngModelChange)="editEmail.set($event)" />
+
+    <label for="e-pass">Nueva contraseña (vacía = no cambiar)</label>
+    <p-password id="e-pass" [ngModel]="editPassword()" (ngModelChange)="editPassword.set($event)" [feedback]="false" [toggleMask]="true" inputStyleClass="w-full" styleClass="w-full" />
+
+    <label for="e-role">Rol</label>
+    <p-select
+      id="e-role"
+      [options]="roleOptions"
+      [ngModel]="editRole()"
+      (ngModelChange)="editRole.set($event)"
+      optionLabel="label"
+      optionValue="value"
+      appendTo="body"
+      [disabled]="editIsSelf()"
+      styleClass="w-full"
+    />
+    @if (editIsSelf()) {
+      <small class="hint">No puedes cambiar tu propio rol.</small>
+    }
+
+    @if (editError()) {
+      <p class="form-error">{{ editError() }}</p>
+    }
+  </div>
+  <ng-template #footer>
+    <p-button label="Cancelar" severity="secondary" [text]="true" (onClick)="showEditDialog.set(false)" />
+    <p-button label="Guardar" icon="pi pi-check" [loading]="editSaving()" (onClick)="saveEdit()" />
+  </ng-template>
+</p-dialog>
+
+<p-dialog header="Ajustar cuota" [(visible)]="showQuotaDialog" [modal]="true" [style]="{ width: '26rem' }">
+  <div class="form-grid">
+    <div class="quota-row">
+      <p-checkbox inputId="q-unlimited" [binary]="true" [ngModel]="quotaUnlimited()" (ngModelChange)="quotaUnlimited.set($event)" />
+      <label for="q-unlimited">Cuota ilimitada</label>
+    </div>
+
+    @if (!quotaUnlimited()) {
+      <label for="q-quota">Cuota (MB)</label>
+      <p-inputNumber id="q-quota" [ngModel]="quotaMB()" (ngModelChange)="quotaMB.set($event)" [min]="0" styleClass="w-full" />
+    }
+
+    @if (quotaError()) {
+      <p class="form-error">{{ quotaError() }}</p>
+    }
+  </div>
+  <ng-template #footer>
+    <p-button label="Cancelar" severity="secondary" [text]="true" (onClick)="showQuotaDialog.set(false)" />
+    <p-button label="Guardar" icon="pi pi-check" [loading]="quotaSaving()" (onClick)="saveQuota()" />
+  </ng-template>
+</p-dialog>
+
+<p-dialog header="Almacenamiento" [(visible)]="showStorageDialog" [modal]="true" [style]="{ width: '26rem' }">
+  @if (storageInfo()) {
+    <dl class="storage-list">
+      <div><dt>Usuario</dt><dd>{{ storageEmail() }}</dd></div>
+      <div><dt>Usado</dt><dd>{{ formatBytes(storageInfo()!.usedBytes) }}</dd></div>
+      <div><dt>Cuota</dt><dd>{{ storageInfo()!.quotaBytes === null ? 'Ilimitada' : formatBytes(storageInfo()!.quotaBytes) }}</dd></div>
+      <div><dt>Disponible</dt><dd>{{ storageInfo()!.available === null ? '—' : formatBytes(storageInfo()!.available) }}</dd></div>
+      <div>
+        <dt>Conciliación</dt>
+        <dd>{{ storageInfo()!.reconciled?.matches ? 'Cuadra con archivos' : 'No cuadra' }} ({{ formatBytes(storageInfo()!.reconciled?.sumBytes ?? 0) }})</dd>
+      </div>
+    </dl>
+  } @else {
+    <p>Cargando…</p>
+  }
+  <ng-template #footer>
+    <p-button label="Cerrar" (onClick)="showStorageDialog.set(false)" />
   </ng-template>
 </p-dialog>

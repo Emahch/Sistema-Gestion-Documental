@@ -3,6 +3,7 @@ import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { provideRouter } from '@angular/router';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { providePrimeNG } from 'primeng/config';
+import { ConfirmationService } from 'primeng/api';
 import { routes } from './app.routes';
 import { DocsDrivePreset } from './theme/app.preset';
 import { authInterceptor } from './core/auth.interceptor';
@@ -18,5 +19,6 @@ export const appConfig: ApplicationConfig = {
     }),
     provideHttpClient(withInterceptors([authInterceptor])),
     provideRouter(routes),
+    ConfirmationService,
   ],
 };

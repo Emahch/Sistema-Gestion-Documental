@@ -1,14 +1,18 @@
-import { Component, signal } from '@angular/core';
+import { Component, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
 import { PasswordModule } from 'primeng/password';
+import { ProgressBarModule } from 'primeng/progressbar';
 import { TagModule } from 'primeng/tag';
 import { AuthService } from '../core/auth.service';
+import { UserService } from '../core/user.service';
+import type { StorageInfo } from '../models/user.model';
 import { ThemeToggle } from '../shared/components/theme-toggle/theme-toggle';
 import { isValidEmail } from '../shared/validators';
+import { formatBytes } from '../shared/format';
 
 @Component({
   selector: 'app-shell',
@@ -21,14 +25,16 @@ import { isValidEmail } from '../shared/validators';
     DialogModule,
     InputTextModule,
     PasswordModule,
+    ProgressBarModule,
     TagModule,
     ThemeToggle,
   ],
   templateUrl: './shell.html',
   styleUrl: './shell.css',
 })
-export class Shell {
+export class Shell implements OnInit {
   protected readonly collapsed = signal(false);
+  protected readonly storage = signal<StorageInfo | null>(null);
 
   protected readonly showProfile = signal(false);
   protected readonly profileEmail = signal('');
@@ -38,11 +44,29 @@ export class Shell {
 
   constructor(
     protected readonly auth: AuthService,
+    private users: UserService,
     private router: Router,
   ) {}
 
   protected toggleSidebar(): void {
     this.collapsed.update((value) => !value);
+  }
+
+  ngOnInit(): void {
+    const id = this.auth.currentUser()?.id;
+    if (id) {
+      this.users.getUserStorage(id).subscribe({
+        next: (info) => this.storage.set(info),
+      });
+    }
+  }
+
+  protected storagePercent(): number {
+    const info = this.storage();
+    if (!info || info.quotaBytes === null || info.quotaBytes <= 0) {
+      return 0;
+    }
+    return Math.min(100, Math.round((info.usedBytes / info.quotaBytes) * 100));
   }
 
   protected openProfile(): void {
@@ -64,7 +88,7 @@ export class Shell {
     }
     this.profileSaving.set(true);
     this.profileError.set(null);
-    this.auth.updateMe({ email: email || undefined, password: this.profilePassword() || undefined }).subscribe({
+    this.users.updateMe({ email: email || undefined, password: this.profilePassword() || undefined }).subscribe({
       next: (user) => {
         this.auth.patchSession({ email: user.email });
         this.profileSaving.set(false);
@@ -81,4 +105,6 @@ export class Shell {
     this.auth.logout();
     this.router.navigate(['/login']);
   }
+
+  protected formatBytes = formatBytes;
 }

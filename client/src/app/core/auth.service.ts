@@ -2,42 +2,9 @@ import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { Observable } from 'rxjs';
+import { RestConstants } from './rest-constants';
+import type { LoginResponse, SessionUser } from '../models/auth.model';
 
-export interface SessionUser {
-  id: string;
-  email: string;
-  role: string;
-}
-
-export interface LoginResponse {
-  token: string;
-  user: SessionUser;
-}
-
-export interface AdminUserRow {
-  id: string;
-  email: string;
-  role: string;
-  isActive: boolean;
-  storage: { quotaBytes: number | null; usedBytes: number };
-  createdAt: string;
-}
-
-export interface PagedUsers {
-  data: AdminUserRow[];
-  total: number;
-  page: number;
-  limit: number;
-}
-
-export interface CreateUserRequest {
-  email: string;
-  password: string;
-  role: 'user' | 'admin';
-  quotaBytes: number | null;
-}
-
-const API_URL = 'http://localhost:3000/api';
 const TOKEN_KEY = 'docsdrive-token';
 const USER_KEY = 'docsdrive-user';
 
@@ -48,7 +15,8 @@ export class AuthService {
   constructor(
     private http: HttpClient,
     private router: Router,
-  ) {}
+    private rest: RestConstants,
+  ) { }
 
   private static loadUser(): SessionUser | null {
     try {
@@ -60,7 +28,7 @@ export class AuthService {
   }
 
   login(email: string, password: string): Observable<LoginResponse> {
-    return this.http.post<LoginResponse>(`${API_URL}/auth/login`, { email, password });
+    return this.http.post<LoginResponse>(`${this.rest.apiUrl}/auth/login`, { email, password });
   }
 
   setSession(token: string, user: SessionUser): void {
@@ -82,18 +50,6 @@ export class AuthService {
 
   isAdmin(): boolean {
     return this.currentUser()?.role === 'admin';
-  }
-
-  listUsers(page = 1, limit = 20): Observable<PagedUsers> {
-    return this.http.get<PagedUsers>(`${API_URL}/users`, { params: { page, limit } });
-  }
-
-  createUser(data: CreateUserRequest): Observable<SessionUser> {
-    return this.http.post<SessionUser>(`${API_URL}/users`, data);
-  }
-
-  updateMe(data: { email?: string; password?: string }): Observable<SessionUser> {
-    return this.http.patch<SessionUser>(`${API_URL}/users/me`, data);
   }
 
   patchSession(patch: Partial<SessionUser>): void {
