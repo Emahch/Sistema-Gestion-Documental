@@ -1,6 +1,6 @@
 # Diagrama ER (generado contra la base viva)
 
-_Base: `gestion_documental` · generado: 10/11/2026 - 5:23:05 AM_
+_Base: `gestion_documental` · generado: 10/12/2026 - 5:44:52 AM_
 
 ```mermaid
 erDiagram
@@ -85,13 +85,13 @@ erDiagram
 
 ## Índices por colección
 
-### `users` (5 documentos)
+### `users` (1 documentos)
 
 - `{ _id:1 }`
 - `{ emailNormalized:1 }` (unique)
 - `{ isActive:1, role:1 }`
 
-### `folders` (5 documentos)
+### `folders` (1 documentos)
 
 - `{ _id:1 }`
 - `{ parentId:1, isDeleted:1, nameNormalized:1 }`
@@ -120,7 +120,7 @@ erDiagram
 - `{ sharedWithId:1, createdAt:-1 }`
 - `{ ownerId:1, origin:1, createdAt:-1 }`
 
-### `activity_logs` (5 documentos)
+### `activity_logs` (1 documentos)
 
 - `{ _id:1 }`
 - `{ userId:1, timestamp:-1 }`

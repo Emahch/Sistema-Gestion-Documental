@@ -23,9 +23,9 @@ Esquema e índices en vivo: [erd.md](./erd.md) (generado con `npm run db:diagram
 - Sin autorregistro: solo admin crea usuarios; el primero nace con `db:seed-admin`.
 - Crear usuario = transacción (usuario + carpeta raíz `Mi unidad` + log `USER_CREATE`).
 - Login con `emailNormalized`; 401 genérico sin distinguir causa; cada petición revalida `isActive`.
-- Email duplicado → 409. 
+- Email duplicado -> 409. 
 - Cuota inicial configurable, `null` = ilimitada.
-- U3/U4/U6: activar/desactivar, consulta de almacenamiento y ajuste de cuota (solo admin; storage también propio).
-- Nadie puede desactivarse ni quitarse el rol a sí mismo (400), ni desde UI (botón deshabilitado) ni desde API.
-- `PATCH /api/users/me` (perfil propio: email/password) y `PATCH /api/users/:id` (admin: email/rol/password). La ruta `/me` va antes que `/:id` porque Express matchea en orden.
-- Reconciliación de cuota solo lectura: compara `usedBytes` con la suma real, reporta sin corregir.
+- Ajuste de cuota (solo admin).
+- Nadie puede desactivarse ni quitarse el rol a sí mismo -> 400.
+- `PATCH /api/users/me` (perfil propio: email/password) y `PATCH /api/users/:id` (admin: email/rol/password).
+- Reconciliación de cuota solo lectura: compara `usedBytes` con la suma real.
