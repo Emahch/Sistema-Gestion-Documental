@@ -1,1 +1,18 @@
 @import 'primeicons/primeicons.css';
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-family);
+  background: var(--surface-ground);
+  color: var(--text-color);
+}
+
+app-root {
+  display: block;
+  min-height: 100dvh;
+}

@@ -4,6 +4,10 @@ export function normalizeEmail(email: unknown): string {
     .toLowerCase();
 }
 
+export function isValidEmail(email: unknown): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim());
+}
+
 export function normalizeName(name: unknown): string {
   return String(name || '')
     .trim()

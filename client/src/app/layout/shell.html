@@ -1,0 +1,54 @@
+<div class="shell" [class.collapsed]="collapsed()">
+  <header class="topbar">
+    <p-button icon="pi pi-bars" [text]="true" [rounded]="true" severity="secondary" ariaLabel="Alternar menú" (onClick)="toggleSidebar()" />
+    <a class="brand" routerLink="/">
+      <span class="brand-icon"><i class="pi pi-database"></i></span>
+      <span class="brand-name">DocsDrive</span>
+    </a>
+    <div class="topbar-right">
+      <span class="user-email">{{ auth.currentUser()?.email }}</span>
+      @if (auth.isAdmin()) {
+        <p-tag value="ADMIN" severity="warn" />
+      }
+      <app-theme-toggle />
+      <p-button icon="pi pi-user-edit" [text]="true" [rounded]="true" severity="secondary" ariaLabel="Editar perfil" (onClick)="openProfile()" />
+      <p-button icon="pi pi-sign-out" [text]="true" [rounded]="true" severity="secondary" ariaLabel="Cerrar sesión" (onClick)="logout()" />
+    </div>
+  </header>
+
+  <div class="body">
+    <aside class="sidebar">
+      <nav class="side-nav">
+        <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" class="side-link">
+          <i class="pi pi-home"></i><span class="side-label">Inicio</span>
+        </a>
+        @if (auth.isAdmin()) {
+          <a routerLink="/users" routerLinkActive="active" class="side-link">
+            <i class="pi pi-users"></i><span class="side-label">Usuarios</span>
+          </a>
+        }
+      </nav>
+    </aside>
+    <main class="content">
+      <router-outlet />
+    </main>
+  </div>
+</div>
+
+<p-dialog header="Editar perfil" [(visible)]="showProfile" [modal]="true" [style]="{ width: '26rem' }">
+  <div class="form-grid">
+    <label for="p-email">Email</label>
+    <input pInputText id="p-email" type="email" [ngModel]="profileEmail()" (ngModelChange)="profileEmail.set($event)" />
+
+    <label for="p-pass">Nueva contraseña (vacía = no cambiar)</label>
+    <p-password id="p-pass" [ngModel]="profilePassword()" (ngModelChange)="profilePassword.set($event)" [feedback]="false" [toggleMask]="true" inputStyleClass="w-full" styleClass="w-full" />
+
+    @if (profileError()) {
+      <p class="form-error">{{ profileError() }}</p>
+    }
+  </div>
+  <ng-template #footer>
+    <p-button label="Cancelar" severity="secondary" [text]="true" (onClick)="showProfile.set(false)" />
+    <p-button label="Guardar" icon="pi pi-check" [loading]="profileSaving()" (onClick)="saveProfile()" />
+  </ng-template>
+</p-dialog>

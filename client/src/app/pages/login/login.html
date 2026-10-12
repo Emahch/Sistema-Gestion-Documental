@@ -1,0 +1,30 @@
+<div class="login-toggle">
+  <app-theme-toggle />
+</div>
+<section class="login-wrap">
+  <p-card header="Iniciar sesión" subheader="Sistema de Gestión Documental">
+    <form class="login-form" (ngSubmit)="submit()">
+      <label for="email">Email</label>
+      <input pInputText id="email" type="email" autocomplete="username" [ngModel]="email()" (ngModelChange)="email.set($event)" name="email" />
+      
+      <label for="password">Contraseña</label>
+      <p-password
+      id="password"
+      [ngModel]="password()"
+      (ngModelChange)="password.set($event)"
+      name="password"
+      [feedback]="false"
+      [toggleMask]="true"
+      inputStyleClass="w-full"
+      styleClass="w-full"
+      />
+      
+      @if (error()) {
+        <p class="form-error">{{ error() }}</p>
+      }
+      
+      <p-button label="Entrar" icon="pi pi-sign-in" type="submit" [loading]="loading()" styleClass="w-full" />
+      <app-theme-toggle></app-theme-toggle>
+    </form>
+  </p-card>
+</section>

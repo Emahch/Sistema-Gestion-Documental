@@ -1,0 +1,143 @@
+.shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1.25rem;
+  border-bottom: 1px solid var(--surface-border);
+  background: var(--surface-0);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+.brand-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.75rem;
+  background: var(--primary-color);
+  color: var(--primary-contrast-color);
+}
+
+.brand-name {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.topbar-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.user-email {
+  color: var(--text-color-secondary);
+  font-weight: 600;
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.sidebar {
+  width: 15rem;
+  flex-shrink: 0;
+  border-right: 1px solid var(--surface-border);
+  background: var(--surface-0);
+  padding: 0.75rem;
+  transition: width 0.2s ease;
+}
+
+.side-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.side-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.9rem;
+  border-radius: var(--border-radius);
+  text-decoration: none;
+  color: var(--text-color-secondary);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.side-link:hover {
+  background: var(--surface-100);
+  color: var(--text-color);
+}
+
+.side-link.active {
+  background: var(--primary-100);
+  color: var(--primary-700);
+}
+
+.shell.collapsed .sidebar {
+  width: 4rem;
+}
+
+.shell.collapsed .side-label {
+  display: none;
+}
+
+.shell.collapsed .side-link {
+  justify-content: center;
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+  padding: 1.5rem;
+}
+
+.content > * {
+  display: block;
+}
+
+.form-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+}
+
+.form-grid label {
+  font-weight: 600;
+  margin-top: 0.5rem;
+}
+
+.form-error {
+  color: var(--red-500);
+  margin: 0.25rem 0 0;
+}
+
+.w-full {
+  width: 100%;
+}

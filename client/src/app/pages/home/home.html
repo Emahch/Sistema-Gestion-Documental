@@ -1,0 +1,10 @@
+<section class="home">
+  <p-card header="Bienvenido a DocsDrive">
+    <p class="m-0">Sesión iniciada como <strong>{{ auth.currentUser()?.email }}</strong> (rol: {{ auth.currentUser()?.role }}).</p>
+    <ng-template #footer>
+      @if (auth.isAdmin()) {
+        <p-button label="Administrar usuarios" icon="pi pi-users" routerLink="/users" />
+      }
+    </ng-template>
+  </p-card>
+</section>

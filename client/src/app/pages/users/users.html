@@ -1,0 +1,83 @@
+<section class="users">
+  <div class="users-head">
+    <div>
+      <h1>Usuarios</h1>
+      <p class="subtitle">{{ total() }} en total</p>
+    </div>
+    <p-button label="Nuevo usuario" icon="pi pi-plus" (onClick)="openDialog()" />
+  </div>
+
+  @if (error()) {
+    <div class="error-banner">{{ error() }}</div>
+  }
+
+  <p-card>
+    <p-table
+      [value]="users()"
+      [loading]="loading()"
+      [lazy]="true"
+      [paginator]="true"
+      [rows]="10"
+      [totalRecords]="total()"
+      (onLazyLoad)="onPage($event)"
+      stripedRows
+    >
+      <ng-template pTemplate="header">
+        <tr>
+          <th>Email</th>
+          <th>Rol</th>
+          <th>Estado</th>
+          <th>Cuota</th>
+          <th>Usado</th>
+          <th>Creado</th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-u>
+        <tr>
+          <td>{{ u.email }}</td>
+          <td><p-tag [value]="u.role" [severity]="u.role === 'admin' ? 'warn' : 'info'" /></td>
+          <td><p-tag [value]="u.isActive ? 'Activo' : 'Inactivo'" [severity]="u.isActive ? 'success' : 'danger'" /></td>
+          <td>{{ u.storage.quotaBytes === null ? 'Ilimitada' : formatBytes(u.storage.quotaBytes) }}</td>
+          <td>{{ formatBytes(u.storage.usedBytes) }}</td>
+          <td>{{ u.createdAt | date: 'medium' }}</td>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="emptymessage">
+        <tr>
+          <td colspan="6">No hay usuarios para mostrar.</td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </p-card>
+</section>
+
+<p-dialog header="Nuevo usuario" [(visible)]="showDialog" [modal]="true" [style]="{ width: '28rem' }">
+  <div class="form-grid">
+    <label for="u-email">Email *</label>
+    <input pInputText id="u-email" type="email" [ngModel]="newEmail()" (ngModelChange)="newEmail.set($event)" />
+
+    <label for="u-pass">Contraseña *</label>
+    <p-password id="u-pass" [ngModel]="newPassword()" (ngModelChange)="newPassword.set($event)" [feedback]="true" [toggleMask]="true" inputStyleClass="w-full" styleClass="w-full" />
+
+    <label for="u-role">Rol</label>
+    <p-select id="u-role" [options]="roleOptions" [ngModel]="newRole()" (ngModelChange)="newRole.set($event)" optionLabel="label" optionValue="value" styleClass="w-full" />
+
+    <div class="quota-row">
+      <p-checkbox inputId="u-unlimited" [binary]="true" [ngModel]="unlimitedQuota()" (ngModelChange)="unlimitedQuota.set($event)" />
+      <label for="u-unlimited">Cuota ilimitada</label>
+    </div>
+
+    @if (!unlimitedQuota()) {
+      <label for="u-quota">Cuota (MB)</label>
+      <p-inputNumber id="u-quota" [ngModel]="newQuotaMB()" (ngModelChange)="newQuotaMB.set($event)" [min]="0" styleClass="w-full" />
+    }
+
+    @if (formError()) {
+      <p class="form-error">{{ formError() }}</p>
+    }
+  </div>
+  <ng-template #footer>
+    <p-button label="Cancelar" severity="secondary" [text]="true" (onClick)="showDialog.set(false)" />
+    <p-button label="Crear" icon="pi pi-check" [loading]="saving()" (onClick)="save()" />
+  </ng-template>
+</p-dialog>
