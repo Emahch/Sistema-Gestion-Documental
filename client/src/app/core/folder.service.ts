@@ -42,4 +42,8 @@ export class FolderService {
   move(id: string, destinationId: string): Observable<DriveFolder> {
     return this.http.patch<DriveFolder>(`${this.baseUrl}/folders/${id}/move`, { destinationId });
   }
+
+  trash(id: string): Observable<{ deletionId: string; folders: number; files: number }> {
+    return this.http.delete<{ deletionId: string; folders: number; files: number }>(`${this.baseUrl}/folders/${id}`);
+  }
 }

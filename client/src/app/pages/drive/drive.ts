@@ -6,12 +6,13 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { firstValueFrom } from 'rxjs';
 import { BreadcrumbModule } from 'primeng/breadcrumb';
 import { ButtonModule } from 'primeng/button';
+import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { DataViewModule } from 'primeng/dataview';
 import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 import { TagModule } from 'primeng/tag';
-import { MenuItem } from 'primeng/api';
+import { MenuItem, ConfirmationService } from 'primeng/api';
 import { FolderService } from '../../core/folder.service';
 import type { DriveFile, DriveFolder } from '../../models/folder.model';
 import { formatBytes } from '../../shared/format';
@@ -27,6 +28,7 @@ type DriveItem =
     FormsModule,
     BreadcrumbModule,
     ButtonModule,
+    ConfirmDialogModule,
     DataViewModule,
     DialogModule,
     InputTextModule,
@@ -45,6 +47,9 @@ export class Drive implements OnInit {
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly layout = signal<'list' | 'grid'>('grid');
+  protected readonly rows = signal(12);
+  protected readonly first = signal(0);
+  protected readonly totalRecords = signal(0);
 
   protected readonly items = computed<DriveItem[]>(() => [
     ...this.folders().map((folder) => ({
@@ -93,28 +98,31 @@ export class Drive implements OnInit {
     private foldersApi: FolderService,
     private route: ActivatedRoute,
     private router: Router,
+    private confirm: ConfirmationService,
   ) {
     this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {
       this.currentId.set(params.get('folderId'));
-      this.reload();
+      this.first.set(0);
+      this.reload(1);
     });
   }
 
   ngOnInit(): void {
-    this.reload();
+    this.reload(1);
   }
 
   protected openFolder(id: string | null): void {
     this.router.navigate(['/drive'], { queryParams: id ? { folderId: id } : {} });
   }
 
-  protected reload(): void {
+  protected reload(page = 1): void {
     this.loading.set(true);
     this.error.set(null);
-    this.foldersApi.children(this.currentId()).subscribe({
+    this.foldersApi.children(this.currentId(), page, this.rows()).subscribe({
       next: (result) => {
         this.folders.set(result.folders);
         this.files.set(result.files);
+        this.totalRecords.set(result.totalFolders + result.totalFiles);
         this.loading.set(false);
         this.loadCrumbs();
       },
@@ -123,6 +131,15 @@ export class Drive implements OnInit {
         this.loading.set(false);
       },
     });
+  }
+
+  protected onPage(event: { first?: number; rows?: number }): void {
+    const rows = event.rows ?? this.rows();
+    if (rows !== this.rows()) {
+      this.rows.set(rows);
+    }
+    this.first.set(event.first ?? 0);
+    this.reload(Math.floor((event.first ?? 0) / rows) + 1);
   }
 
   private loadCrumbs(): void {
@@ -167,7 +184,8 @@ export class Drive implements OnInit {
       next: () => {
         this.creating.set(false);
         this.showCreate.set(false);
-        this.reload();
+        this.first.set(0);
+        this.reload(1);
       },
       error: (err: { status?: number }) => {
         this.createError.set(err?.status === 409 ? 'Ya existe una carpeta con ese nombre.' : 'No se pudo crear la carpeta.');
@@ -196,7 +214,8 @@ export class Drive implements OnInit {
       next: () => {
         this.renaming.set(false);
         this.showRename.set(false);
-        this.reload();
+        this.first.set(0);
+        this.reload(1);
       },
       error: (err: { status?: number }) => {
         this.renameError.set(
@@ -212,18 +231,20 @@ export class Drive implements OnInit {
     this.destinationId.set('');
     this.moveError.set(null);
     this.showMove.set(true);
-    this.destinations.set(await this.flatTree(folder.id));
+    this.destinations.set(await this.flatTree(folder.id, this.currentId()));
   }
 
-  private async flatTree(excludedId: string): Promise<{ label: string; value: string }[]> {
+  private async flatTree(excludedId: string, parentId: string | null): Promise<{ label: string; value: string }[]> {
     const options: { label: string; value: string }[] = [];
-    const walk = async (parentId: string | null, prefix: string): Promise<void> => {
-      const page = await firstValueFrom(this.foldersApi.children(parentId));
+    const walk = async (currentId: string | null, prefix: string): Promise<void> => {
+      const page = await firstValueFrom(this.foldersApi.children(currentId));
       for (const folder of page.folders) {
         if (folder.id === excludedId) {
           continue;
         }
-        options.push({ label: `${prefix}${folder.name}`, value: folder.id });
+        if (folder.id !== parentId) {
+          options.push({ label: `${prefix}${folder.name}`, value: folder.id });
+        }
         await walk(folder.id, `${prefix}${folder.name} / `);
       }
     };
@@ -244,7 +265,8 @@ export class Drive implements OnInit {
       next: () => {
         this.moving.set(false);
         this.showMove.set(false);
-        this.reload();
+        this.first.set(0);
+        this.reload(1);
       },
       error: (err: { status?: number }) => {
         this.moveError.set(
@@ -253,6 +275,31 @@ export class Drive implements OnInit {
             : 'No se pudo mover la carpeta.'
         );
         this.moving.set(false);
+      },
+    });
+  }
+
+  protected confirmTrash(folder: DriveFolder): void {
+    this.confirm.confirm({
+      header: 'Enviar a la papelera',
+      message: `¿Enviar "${folder.name}" y su contenido a la papelera?`,
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: 'Enviar',
+      rejectLabel: 'Cancelar',
+      accept: () => this.trash(folder),
+    });
+  }
+
+  private trash(folder: DriveFolder): void {
+    this.foldersApi.trash(folder.id).subscribe({
+      next: () => {
+        this.first.set(0);
+        this.reload(1);
+      },
+      error: (err: { status?: number }) => {
+        this.error.set(
+          err?.status === 400 ? 'No se puede eliminar: revisa el contenido.' : 'No se pudo eliminar la carpeta.'
+        );
       },
     });
   }

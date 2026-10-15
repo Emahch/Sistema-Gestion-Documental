@@ -60,6 +60,15 @@ export class FolderController {
       next(err);
     }
   };
+
+  trash = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const result = await this.folderService.trashFolder(userId(req), routeParam(req));
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  };
 }
 
 function userId(req: AuthRequest): string {

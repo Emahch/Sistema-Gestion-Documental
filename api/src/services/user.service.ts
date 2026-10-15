@@ -82,7 +82,7 @@ export class UserService {
               storage: { quotaBytes, usedBytes: 0 },
             },
           ],
-          { session }
+          { session, ordered: true }
         );
         if (!created) {
           throw new HttpError(500, 'No se pudo crear el usuario');
@@ -98,7 +98,7 @@ export class UserService {
               nameNormalized: normalizeName(ROOT_FOLDER_NAME),
             },
           ],
-          { session }
+          { session, ordered: true }
         );
         await ActivityLogModel.create(
           [
@@ -112,7 +112,7 @@ export class UserService {
               affectedUserIds: [],
             },
           ],
-          { session }
+          { session, ordered: true }
         );
       });
       if (!created) {

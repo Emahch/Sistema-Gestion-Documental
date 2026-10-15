@@ -13,6 +13,8 @@ export interface FolderChildren {
   files: PublicFile[];
   page: number;
   limit: number;
+  totalFolders: number;
+  totalFiles: number;
 }
 
 function toPage(value: unknown, fallback: number): number {
@@ -48,15 +50,19 @@ export class FolderService {
     const page = toPage(pageRaw, 1);
     const limit = toPage(limitRaw, 20);
     const parent = await this.readableFolder(userId, parentId);
-    const [folders, files] = await Promise.all([
-      FolderModel.find({ parentId: parent._id, ownerId: parent.ownerId, isDeleted: false })
+    const folderFilter = { parentId: parent._id, ownerId: parent.ownerId, isDeleted: false };
+    const fileFilter = { folderId: parent._id, ownerId: parent.ownerId, isDeleted: false };
+    const [folders, files, totalFolders, totalFiles] = await Promise.all([
+      FolderModel.find(folderFilter)
         .sort({ nameNormalized: 1, name: 1 })
         .skip((page - 1) * limit)
         .limit(limit),
-      FileModel.find({ folderId: parent._id, ownerId: parent.ownerId, isDeleted: false })
+      FileModel.find(fileFilter)
         .sort({ nameNormalized: 1, name: 1 })
         .skip((page - 1) * limit)
         .limit(limit),
+      FolderModel.countDocuments(folderFilter),
+      FileModel.countDocuments(fileFilter),
     ]);
     return {
       folders: folders.map((folder) => toPublicFolder(folder)),
@@ -71,6 +77,8 @@ export class FolderService {
       })),
       page,
       limit,
+      totalFolders,
+      totalFiles,
     };
   }
 
@@ -218,7 +226,7 @@ export class FolderService {
               affectedUserIds: [],
             },
           ],
-          { session }
+          { session, ordered: true }
         );
       });
       if (!moved) {
@@ -230,6 +238,92 @@ export class FolderService {
         throw new ConflictError('Ya existe una carpeta con ese nombre en el destino');
       }
       throw err;
+    } finally {
+      await session.endSession();
+    }
+  }
+
+  async trashFolder(
+    userId: string,
+    id: string
+  ): Promise<{ deletionId: string; folders: number; files: number }> {
+    const folder = await this.ownedFolder(userId, id);
+    if (folder.isRoot) {
+      throw new BadRequestError('La raíz no puede enviarse a la papelera');
+    }
+    const descendants = await FolderModel.find({ ancestors: folder._id, isDeleted: false });
+    const subtreeIds = [folder._id, ...descendants.map((child) => child._id)];
+    const foreignFiles = await FileModel.countDocuments({
+      folderId: { $in: subtreeIds },
+      ownerId: { $ne: folder.ownerId },
+      isDeleted: false,
+    });
+    if (foreignFiles > 0) {
+      throw new BadRequestError('La carpeta contiene archivos de otros usuarios');
+    }
+    const deletionId = new mongoose.Types.ObjectId();
+    const deletedAt = new Date();
+    const actorId = new mongoose.Types.ObjectId(userId);
+    const affectedFiles = await FileModel.find({ folderId: { $in: subtreeIds }, isDeleted: false }, { _id: 1, name: 1 });
+    const session = await mongoose.startSession();
+    try {
+      let trashedFiles = 0;
+      await session.withTransaction(async () => {
+        await FolderModel.updateOne(
+          { _id: folder._id },
+          { $set: { isDeleted: true, deletedAt, deletionId, isDeletionRoot: true } },
+          { session }
+        );
+        if (descendants.length > 0) {
+          await FolderModel.updateMany(
+            { _id: { $in: descendants.map((child) => child._id) } },
+            { $set: { isDeleted: true, deletedAt, deletionId, isDeletionRoot: false } },
+            { session }
+          );
+        }
+        const files = await FileModel.updateMany(
+          { folderId: { $in: subtreeIds }, isDeleted: false },
+          { $set: { isDeleted: true, deletedAt, deletionId, isDeletionRoot: false } },
+          { session }
+        );
+        trashedFiles = files.modifiedCount;
+        await ActivityLogModel.create(
+          [
+            {
+              userId: actorId,
+              action: 'TRASH',
+              status: 'success',
+              resourceType: 'folder',
+              resourceId: folder._id,
+              resourceSnapshot: { name: folder.name },
+              details: { deletionId, isDeletionRoot: true },
+              affectedUserIds: [],
+            },
+            ...descendants.map((child) => ({
+              userId: actorId,
+              action: 'TRASH',
+              status: 'success',
+              resourceType: 'folder',
+              resourceId: child._id,
+              resourceSnapshot: { name: child.name },
+              details: { deletionId, isDeletionRoot: false },
+              affectedUserIds: [],
+            })),
+            ...affectedFiles.map((file) => ({
+              userId: actorId,
+              action: 'TRASH',
+              status: 'success',
+              resourceType: 'file',
+              resourceId: file._id,
+              resourceSnapshot: { name: file.name },
+              details: { deletionId, isDeletionRoot: false },
+              affectedUserIds: [],
+            })),
+          ],
+          { session, ordered: true }
+        );
+      });
+      return { deletionId: deletionId.toString(), folders: descendants.length + 1, files: trashedFiles };
     } finally {
       await session.endSession();
     }

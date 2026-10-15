@@ -22,7 +22,21 @@
     <div class="error-banner">{{ error() }}</div>
   }
 
-  <p-dataview [value]="items()" [layout]="layout()" [loading]="loading()">
+  <p-dataview
+    [value]="items()"
+    [layout]="layout()"
+    [loading]="loading()"
+    [lazy]="true"
+    [paginator]="true"
+    [rows]="rows()"
+    [first]="first()"
+    [totalRecords]="totalRecords()"
+    [rowsPerPageOptions]="[12, 24, 48]"
+    [showCurrentPageReport]="true"
+    currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords}"
+    paginatorPosition="bottom"
+    (onPage)="onPage($event)"
+  >
     <ng-template #list let-items>
       <div class="list-rows">
         @for (item of items; track item.id) {
@@ -36,6 +50,7 @@
               <div class="row-actions">
                 <p-button icon="pi pi-pencil" [text]="true" [rounded]="true" severity="secondary" ariaLabel="Renombrar" (onClick)="openRename(item.folder)" />
                 <p-button icon="pi pi-send" [text]="true" [rounded]="true" severity="secondary" ariaLabel="Mover" (onClick)="openMove(item.folder)" />
+                <p-button icon="pi pi-trash" [text]="true" [rounded]="true" severity="danger" ariaLabel="Enviar a la papelera" (onClick)="confirmTrash(item.folder)" />
               </div>
             } @else {
               <span class="row-open static">
@@ -61,6 +76,7 @@
               <div class="grid-actions">
                 <p-button icon="pi pi-pencil" [text]="true" [rounded]="true" severity="secondary" ariaLabel="Renombrar" (onClick)="openRename(item.folder)" />
                 <p-button icon="pi pi-send" [text]="true" [rounded]="true" severity="secondary" ariaLabel="Mover" (onClick)="openMove(item.folder)" />
+                <p-button icon="pi pi-trash" [text]="true" [rounded]="true" severity="danger" ariaLabel="Enviar a la papelera" (onClick)="confirmTrash(item.folder)" />
               </div>
             } @else {
               <span class="grid-open static">
@@ -79,6 +95,8 @@
     </ng-template>
   </p-dataview>
 </section>
+
+<p-confirmDialog />
 
 <p-dialog header="Nueva carpeta" [(visible)]="showCreate" [modal]="true" [style]="{ width: '26rem' }">
   <div class="form-grid">

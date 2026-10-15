@@ -24,4 +24,6 @@ export interface FolderChildren {
   files: DriveFile[];
   page: number;
   limit: number;
+  totalFolders: number;
+  totalFiles: number;
 }

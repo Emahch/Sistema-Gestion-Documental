@@ -29,3 +29,11 @@ Esquema e índices en vivo: [erd.md](./erd.md) (generado con `npm run db:diagram
 - Nadie puede desactivarse ni quitarse el rol a sí mismo -> 400.
 - `PATCH /api/users/me` (perfil propio: email/password) y `PATCH /api/users/:id` (admin: email/rol/password).
 - Reconciliación de cuota solo lectura: compara `usedBytes` con la suma real.
+
+## Carpetas y explorador
+
+- Devuelve `totalFolders` y `totalFiles` (conteos en el mismo `Promise.all` que las consultas).
+- El explorador pagina en servidor: cada página pide carpetas y archivos de ese número y los concatena (carpetas primero). Las páginas pueden salir disparejas porque son dos colecciones.
+- Al navegar de carpeta o mutar (crear/renombrar/mover) se vuelve a la página 1 explícitamente con `first`.
+- Mover excluye en UI la carpeta, su subárbol y su carpeta padre como destino; el backend igual valida ciclos (defensa en dos capas).
+- P1 papelera de carpetas: `DELETE /api/folders/:id` marca `isDeleted` + `deletionId` compartido a todo el subárbol (`isDeletionRoot` solo en lo pedido directamente), un log TRASH por recurso, sin liberar cuota; bloquea la raíz y subárboles con archivos ajenos.

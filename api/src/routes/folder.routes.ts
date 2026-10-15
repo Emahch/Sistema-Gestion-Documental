@@ -62,6 +62,8 @@ const controller = new FolderController();
  *                   items: { type: object }
  *                 page: { type: integer }
  *                 limit: { type: integer }
+ *                 totalFolders: { type: integer }
+ *                 totalFiles: { type: integer }
  *       401:
  *         description: Sin token o inactivo
  *         content:
@@ -299,5 +301,51 @@ router.patch('/:id/move', auth, controller.move);
  *             schema: { $ref: '#/components/schemas/Error' }
  */
 router.get('/:id/breadcrumb', auth, controller.breadcrumb);
+
+/**
+ * @openapi
+ * /api/folders/{id}:
+ *   delete:
+ *     summary: Envía una carpeta y su contenido a la papelera
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Recursos enviados a la papelera
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 deletionId: { type: string }
+ *                 folders: { type: integer }
+ *                 files: { type: integer }
+ *       400:
+ *         description: Es la raíz o contiene archivos ajenos
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ *       401:
+ *         description: Sin token o inactivo
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ *       403:
+ *         description: Sin acceso a la carpeta
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ *       404:
+ *         description: Carpeta no encontrada
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ */
+router.delete('/:id', auth, controller.trash);
 
 export default router;
