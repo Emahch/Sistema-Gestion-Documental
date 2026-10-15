@@ -1,0 +1,198 @@
+.drive {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.crumbs {
+  border: none;
+  background: transparent;
+  padding: 0;
+}
+
+.drive-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.drive-head h1 {
+  margin: 0;
+}
+
+.drive-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.error-banner {
+  padding: 0.75rem 1rem;
+  border-radius: var(--border-radius);
+  background: var(--red-50);
+  color: var(--red-700);
+  border: 1px solid var(--red-200);
+}
+
+.list-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.list-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--surface-border);
+}
+
+.list-row:last-child {
+  border-bottom: none;
+}
+
+.list-row:hover {
+  background: var(--surface-50);
+}
+
+.row-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  padding: 0;
+}
+
+.row-open.static {
+  cursor: default;
+}
+
+.row-icon {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+  color: var(--text-color-secondary);
+}
+
+.row-icon.folder {
+  color: var(--primary-color);
+}
+
+.row-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row-meta {
+  color: var(--text-color-secondary);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.row-actions {
+  display: flex;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.grid-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 0.75rem;
+  padding: 0.75rem;
+}
+
+.grid-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem 0.75rem;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--border-radius);
+  background: var(--surface-0);
+}
+
+.grid-card:hover {
+  background: var(--surface-50);
+}
+
+.grid-open {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+.grid-open.static {
+  cursor: default;
+}
+
+.grid-icon {
+  font-size: 2.5rem;
+  color: var(--primary-color);
+}
+
+.grid-icon.file {
+  color: var(--text-color-secondary);
+}
+
+.grid-name {
+  font-weight: 600;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.grid-actions {
+  display: flex;
+}
+
+.grid-meta {
+  color: var(--text-color-secondary);
+}
+
+.empty {
+  padding: 2rem;
+  text-align: center;
+  color: var(--text-color-secondary);
+}
+
+.form-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+}
+
+.form-grid label {
+  font-weight: 600;
+  margin-top: 0.5rem;
+}
+
+.form-error {
+  color: var(--red-500);
+  margin: 0.25rem 0 0;
+}
+
+.w-full {
+  width: 100%;
+}

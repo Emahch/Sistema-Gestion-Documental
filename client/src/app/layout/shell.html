@@ -22,6 +22,9 @@
         <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" class="side-link">
           <i class="pi pi-home"></i><span class="side-label">Inicio</span>
         </a>
+        <a routerLink="/drive" routerLinkActive="active" class="side-link">
+          <i class="pi pi-folder"></i><span class="side-label">Mi unidad</span>
+        </a>
         @if (auth.isAdmin()) {
           <a routerLink="/users" routerLinkActive="active" class="side-link">
             <i class="pi pi-users"></i><span class="side-label">Usuarios</span>

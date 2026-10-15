@@ -15,3 +15,14 @@ export interface Folder {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export interface PublicFolder {
+  id: string;
+  ownerId: string;
+  parentId: string | null;
+  isRoot: boolean;
+  name: string;
+  ancestors: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}

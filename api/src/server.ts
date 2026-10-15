@@ -7,6 +7,7 @@ import { connectDB } from './config/db';
 import { notFound, errorHandler } from './middlewares/errors';
 import authRouter from './routes/auth.routes';
 import userRouter from './routes/user.routes';
+import folderRouter from './routes/folder.routes';
 
 const app = express();
 
@@ -39,6 +40,7 @@ app.get('/api/health', (req: Request, res: Response) => {
 
 app.use('/api/auth', authRouter);
 app.use('/api/users', userRouter);
+app.use('/api/folders', folderRouter);
 
 app.use(notFound);
 app.use(errorHandler);

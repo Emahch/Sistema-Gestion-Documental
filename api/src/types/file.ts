@@ -18,3 +18,13 @@ export interface File {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export interface PublicFile {
+  id: string;
+  name: string;
+  mimeType: string;
+  category: FileCategory;
+  size: number;
+  createdAt: Date;
+  updatedAt: Date;
+}

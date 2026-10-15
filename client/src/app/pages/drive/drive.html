@@ -1,0 +1,133 @@
+<section class="drive">
+  <p-breadcrumb [model]="breadcrumb()" styleClass="crumbs" />
+
+  <div class="drive-head">
+    <div>
+      <h1>{{ currentFolder()?.name ?? 'Mi unidad' }}</h1>
+    </div>
+    <div class="drive-tools">
+      <p-button
+        [icon]="layout() === 'list' ? 'pi pi-th-large' : 'pi pi-bars'"
+        [text]="true"
+        [rounded]="true"
+        severity="secondary"
+        ariaLabel="Alternar vista de lista y cuadrícula"
+        (onClick)="layout.set(layout() === 'list' ? 'grid' : 'list')"
+      />
+      <p-button label="Nueva carpeta" icon="pi pi-plus" (onClick)="openCreate()" />
+    </div>
+  </div>
+
+  @if (error()) {
+    <div class="error-banner">{{ error() }}</div>
+  }
+
+  <p-dataview [value]="items()" [layout]="layout()" [loading]="loading()">
+    <ng-template #list let-items>
+      <div class="list-rows">
+        @for (item of items; track item.id) {
+          <div class="list-row">
+            @if (item.kind === 'folder') {
+              <button type="button" class="row-open" (click)="openFolder(item.id)">
+                <i class="pi pi-folder row-icon folder"></i>
+                <span class="row-name">{{ item.name }}</span>
+              </button>
+              <span class="row-meta">{{ item.updatedAt | date: 'medium' }}</span>
+              <div class="row-actions">
+                <p-button icon="pi pi-pencil" [text]="true" [rounded]="true" severity="secondary" ariaLabel="Renombrar" (onClick)="openRename(item.folder)" />
+                <p-button icon="pi pi-send" [text]="true" [rounded]="true" severity="secondary" ariaLabel="Mover" (onClick)="openMove(item.folder)" />
+              </div>
+            } @else {
+              <span class="row-open static">
+                <i class="pi pi-file row-icon"></i>
+                <span class="row-name">{{ item.name }}</span>
+              </span>
+              <p-tag [value]="item.file.mimeType || '—'" severity="info" />
+              <span class="row-meta">{{ formatBytes(item.file.size) }} · {{ item.updatedAt | date: 'medium' }}</span>
+            }
+          </div>
+        }
+      </div>
+    </ng-template>
+    <ng-template #grid let-items>
+      <div class="grid-cards">
+        @for (item of items; track item.id) {
+          <div class="grid-card">
+            @if (item.kind === 'folder') {
+              <button type="button" class="grid-open" (click)="openFolder(item.id)">
+                <i class="pi pi-folder grid-icon"></i>
+                <span class="grid-name">{{ item.name }}</span>
+              </button>
+              <div class="grid-actions">
+                <p-button icon="pi pi-pencil" [text]="true" [rounded]="true" severity="secondary" ariaLabel="Renombrar" (onClick)="openRename(item.folder)" />
+                <p-button icon="pi pi-send" [text]="true" [rounded]="true" severity="secondary" ariaLabel="Mover" (onClick)="openMove(item.folder)" />
+              </div>
+            } @else {
+              <span class="grid-open static">
+                <i class="pi pi-file grid-icon file"></i>
+                <span class="grid-name">{{ item.name }}</span>
+              </span>
+              <p-tag [value]="item.file.mimeType || '—'" severity="info" />
+              <small class="grid-meta">{{ formatBytes(item.file.size) }}</small>
+            }
+          </div>
+        }
+      </div>
+    </ng-template>
+    <ng-template #emptymessage>
+      <p class="empty">Esta carpeta está vacía.</p>
+    </ng-template>
+  </p-dataview>
+</section>
+
+<p-dialog header="Nueva carpeta" [(visible)]="showCreate" [modal]="true" [style]="{ width: '26rem' }">
+  <div class="form-grid">
+    <label for="f-name">Nombre *</label>
+    <input pInputText id="f-name" [ngModel]="newName()" (ngModelChange)="newName.set($event)" placeholder="Ej. Proyectos" />
+    @if (createError()) {
+      <p class="form-error">{{ createError() }}</p>
+    }
+  </div>
+  <ng-template #footer>
+    <p-button label="Cancelar" severity="secondary" [text]="true" (onClick)="showCreate.set(false)" />
+    <p-button label="Crear" icon="pi pi-check" [loading]="creating()" (onClick)="create()" />
+  </ng-template>
+</p-dialog>
+
+<p-dialog header="Renombrar carpeta" [(visible)]="showRename" [modal]="true" [style]="{ width: '26rem' }">
+  <div class="form-grid">
+    <label for="r-name">Nombre *</label>
+    <input pInputText id="r-name" [ngModel]="renameName()" (ngModelChange)="renameName.set($event)" />
+    @if (renameError()) {
+      <p class="form-error">{{ renameError() }}</p>
+    }
+  </div>
+  <ng-template #footer>
+    <p-button label="Cancelar" severity="secondary" [text]="true" (onClick)="showRename.set(false)" />
+    <p-button label="Guardar" icon="pi pi-check" [loading]="renaming()" (onClick)="saveRename()" />
+  </ng-template>
+</p-dialog>
+
+<p-dialog header="Mover carpeta" [(visible)]="showMove" [modal]="true" [style]="{ width: '26rem' }">
+  <div class="form-grid">
+    <label for="m-dest">Carpeta destino</label>
+    <p-select
+      id="m-dest"
+      [options]="destinations()"
+      [ngModel]="destinationId()"
+      (ngModelChange)="destinationId.set($event)"
+      optionLabel="label"
+      optionValue="value"
+      placeholder="Elige destino"
+      appendTo="body"
+      styleClass="w-full"
+    />
+    @if (moveError()) {
+      <p class="form-error">{{ moveError() }}</p>
+    }
+  </div>
+  <ng-template #footer>
+    <p-button label="Cancelar" severity="secondary" [text]="true" (onClick)="showMove.set(false)" />
+    <p-button label="Mover" icon="pi pi-send" [loading]="moving()" (onClick)="saveMove()" />
+  </ng-template>
+</p-dialog>
