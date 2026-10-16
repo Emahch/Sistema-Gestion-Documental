@@ -37,3 +37,9 @@ export class ConflictError extends HttpError {
     super(409, message);
   }
 }
+
+export class PayloadTooLargeError extends HttpError {
+  constructor(message = 'Contenido demasiado grande') {
+    super(413, message);
+  }
+}

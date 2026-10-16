@@ -18,15 +18,15 @@
 
 .subtitle {
   margin: 0.25rem 0 0;
-  color: var(--text-color-secondary);
+  color: var(--p-text-muted-color);
 }
 
 .error-banner {
   padding: 0.75rem 1rem;
-  border-radius: var(--border-radius);
-  background: var(--red-50);
-  color: var(--red-700);
-  border: 1px solid var(--red-200);
+  border-radius: var(--p-border-radius-md);
+  background: light-dark(var(--p-red-50), color-mix(in srgb, var(--p-red-500) 16%, transparent));
+  color: light-dark(var(--p-red-700), var(--p-red-200));
+  border: 1px solid light-dark(var(--p-red-200), color-mix(in srgb, var(--p-red-500) 40%, transparent));
 }
 
 .form-grid {
@@ -53,12 +53,12 @@
 }
 
 .form-error {
-  color: var(--red-500);
+  color: var(--p-red-500);
   margin: 0.25rem 0 0;
 }
 
 .hint {
-  color: var(--text-color-secondary);
+  color: var(--p-text-muted-color);
 }
 
 .row-actions {
@@ -80,7 +80,7 @@
 }
 
 .storage-list dt {
-  color: var(--text-color-secondary);
+  color: var(--p-text-muted-color);
   font-weight: 600;
 }
 

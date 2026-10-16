@@ -1,17 +1,21 @@
-import { Component, OnInit, computed, signal } from '@angular/core';
+import { Component, OnInit, ViewChild, computed, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { firstValueFrom } from 'rxjs';
+import { HttpEventType } from '@angular/common/http';
 import { BreadcrumbModule } from 'primeng/breadcrumb';
 import { ButtonModule } from 'primeng/button';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { DataViewModule } from 'primeng/dataview';
 import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
+import { MenuModule } from 'primeng/menu';
+import { Menu } from 'primeng/menu';
 import { SelectModule } from 'primeng/select';
 import { TagModule } from 'primeng/tag';
+import { ProgressBarModule } from 'primeng/progressbar';
 import { MenuItem, ConfirmationService } from 'primeng/api';
 import { FolderService } from '../../core/folder.service';
 import type { DriveFile, DriveFolder } from '../../models/folder.model';
@@ -32,6 +36,8 @@ type DriveItem =
     DataViewModule,
     DialogModule,
     InputTextModule,
+    MenuModule,
+    ProgressBarModule,
     SelectModule,
     TagModule,
   ],
@@ -47,9 +53,6 @@ export class Drive implements OnInit {
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly layout = signal<'list' | 'grid'>('grid');
-  protected readonly rows = signal(12);
-  protected readonly first = signal(0);
-  protected readonly totalRecords = signal(0);
 
   protected readonly items = computed<DriveItem[]>(() => [
     ...this.folders().map((folder) => ({
@@ -86,6 +89,25 @@ export class Drive implements OnInit {
   protected readonly moveError = signal<string | null>(null);
   protected readonly moving = signal(false);
 
+  protected readonly uploading = signal(false);
+  protected readonly uploadPercent = signal(0);
+  protected readonly uploadError = signal<string | null>(null);
+  protected readonly downloadingId = signal<string | null>(null);
+
+  protected readonly renameFileTarget = signal<DriveFile | null>(null);
+  protected readonly showRenameFile = signal(false);
+  protected readonly renameFileName = signal('');
+  protected readonly renameFileError = signal<string | null>(null);
+  protected readonly renamingFile = signal(false);
+
+  protected readonly moveFileTarget = signal<DriveFile | null>(null);
+  protected readonly showMoveFile = signal(false);
+
+  protected readonly replaceTarget = signal<DriveFile | null>(null);
+  protected readonly showReplace = signal(false);
+  protected readonly replaceError = signal<string | null>(null);
+  protected readonly replacing = signal(false);
+
   protected readonly breadcrumb = computed<MenuItem[]>(() =>
     this.crumbs().map((folder, index, chain) =>
       index === chain.length - 1
@@ -102,27 +124,25 @@ export class Drive implements OnInit {
   ) {
     this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {
       this.currentId.set(params.get('folderId'));
-      this.first.set(0);
-      this.reload(1);
+      this.reload();
     });
   }
 
   ngOnInit(): void {
-    this.reload(1);
+    this.reload();
   }
 
   protected openFolder(id: string | null): void {
     this.router.navigate(['/drive'], { queryParams: id ? { folderId: id } : {} });
   }
 
-  protected reload(page = 1): void {
+  protected reload(): void {
     this.loading.set(true);
     this.error.set(null);
-    this.foldersApi.children(this.currentId(), page, this.rows()).subscribe({
+    this.foldersApi.children(this.currentId(), 1, 100).subscribe({
       next: (result) => {
         this.folders.set(result.folders);
         this.files.set(result.files);
-        this.totalRecords.set(result.totalFolders + result.totalFiles);
         this.loading.set(false);
         this.loadCrumbs();
       },
@@ -131,15 +151,6 @@ export class Drive implements OnInit {
         this.loading.set(false);
       },
     });
-  }
-
-  protected onPage(event: { first?: number; rows?: number }): void {
-    const rows = event.rows ?? this.rows();
-    if (rows !== this.rows()) {
-      this.rows.set(rows);
-    }
-    this.first.set(event.first ?? 0);
-    this.reload(Math.floor((event.first ?? 0) / rows) + 1);
   }
 
   private loadCrumbs(): void {
@@ -184,8 +195,7 @@ export class Drive implements OnInit {
       next: () => {
         this.creating.set(false);
         this.showCreate.set(false);
-        this.first.set(0);
-        this.reload(1);
+        this.reload();
       },
       error: (err: { status?: number }) => {
         this.createError.set(err?.status === 409 ? 'Ya existe una carpeta con ese nombre.' : 'No se pudo crear la carpeta.');
@@ -214,8 +224,7 @@ export class Drive implements OnInit {
       next: () => {
         this.renaming.set(false);
         this.showRename.set(false);
-        this.first.set(0);
-        this.reload(1);
+        this.reload();
       },
       error: (err: { status?: number }) => {
         this.renameError.set(
@@ -265,8 +274,7 @@ export class Drive implements OnInit {
       next: () => {
         this.moving.set(false);
         this.showMove.set(false);
-        this.first.set(0);
-        this.reload(1);
+        this.reload();
       },
       error: (err: { status?: number }) => {
         this.moveError.set(
@@ -293,8 +301,7 @@ export class Drive implements OnInit {
   private trash(folder: DriveFolder): void {
     this.foldersApi.trash(folder.id).subscribe({
       next: () => {
-        this.first.set(0);
-        this.reload(1);
+        this.reload();
       },
       error: (err: { status?: number }) => {
         this.error.set(
@@ -304,5 +311,222 @@ export class Drive implements OnInit {
     });
   }
 
+  @ViewChild('itemMenu') private readonly itemMenu?: Menu;
+  protected readonly menuItems = signal<MenuItem[]>([]);
+
+  protected activateItem(item: DriveItem): void {
+    if (item.kind === 'folder') {
+      this.openFolder(item.id);
+    } else {
+      this.downloadFile(item);
+    }
+  }
+
+  protected openItemMenu(event: MouseEvent, item: DriveItem): void {
+    event.stopPropagation();
+    this.menuItems.set(item.kind === 'folder' ? this.folderMenu(item.folder) : this.fileMenu(item.file));
+    this.itemMenu?.toggle(event);
+  }
+
+  private folderMenu(folder: DriveFolder): MenuItem[] {
+    return [
+      { label: 'Abrir', icon: 'pi pi-folder-open', command: () => this.openFolder(folder.id) },
+      { label: 'Renombrar', icon: 'pi pi-pencil', command: () => this.openRename(folder) },
+      { label: 'Mover', icon: 'pi pi-send', command: () => this.openMove(folder) },
+      {
+        label: 'Enviar a la papelera',
+        icon: 'pi pi-trash',
+        styleClass: 'menu-danger',
+        command: () => this.confirmTrash(folder),
+      },
+    ];
+  }
+
+  private fileMenu(file: DriveFile): MenuItem[] {
+    return [
+      { label: 'Descargar', icon: 'pi pi-download', command: () => this.downloadById(file) },
+      { label: 'Renombrar', icon: 'pi pi-pencil', command: () => this.openRenameFile(file) },
+      { label: 'Mover', icon: 'pi pi-send', command: () => this.openMoveFile(file) },
+      { label: 'Reemplazar contenido', icon: 'pi pi-file-edit', command: () => this.openReplace(file) },
+    ];
+  }
+
+  private downloadById(file: DriveFile): void {
+    this.downloadFile({ kind: 'file', id: file.id, name: file.name, updatedAt: file.updatedAt, file });
+  }
+
   protected formatBytes = formatBytes;
+
+  protected onFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) {
+      return;
+    }
+    const parentId = this.currentFolder()?.id;
+    if (!parentId) {
+      this.uploadError.set('Aún no se conoce la carpeta actual.');
+      return;
+    }
+    this.uploading.set(true);
+    this.uploadPercent.set(0);
+    this.uploadError.set(null);
+    this.foldersApi.uploadFile(parentId, file).subscribe({
+      next: (event) => {
+        if (event.type === HttpEventType.UploadProgress) {
+          const total = event.total ?? file.size;
+          this.uploadPercent.set(total ? Math.round((event.loaded / total) * 100) : 0);
+        } else if (event.type === HttpEventType.Response) {
+          this.uploading.set(false);
+          this.uploadPercent.set(0);
+          this.reload();
+        }
+      },
+      error: (err: { status?: number }) => {
+        this.uploadError.set(
+          err?.status === 409
+            ? 'Ya existe un archivo con ese nombre.'
+            : err?.status === 413
+              ? 'El archivo excede tu cuota disponible.'
+              : err?.status === 400
+                ? 'Archivo inválido (solo .txt y .md en UTF-8).'
+                : 'No se pudo subir el archivo.'
+        );
+        this.uploading.set(false);
+        this.uploadPercent.set(0);
+      },
+    });
+  }
+
+  protected downloadFile(item: DriveItem): void {
+    if (item.kind !== 'file') {
+      return;
+    }
+    const file = item.file;
+    this.downloadingId.set(file.id);
+    this.foldersApi.downloadFile(file.id).subscribe({
+      next: (blob) => {
+        this.downloadingId.set(null);
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = file.name;
+        anchor.click();
+        URL.revokeObjectURL(url);
+      },
+      error: () => {
+        this.downloadingId.set(null);
+        this.error.set('No se pudo descargar el archivo.');
+      },
+    });
+  }
+
+  protected openRenameFile(file: DriveFile): void {
+    this.renameFileTarget.set(file);
+    this.renameFileName.set(file.name);
+    this.renameFileError.set(null);
+    this.showRenameFile.set(true);
+  }
+
+  protected saveRenameFile(): void {
+    const target = this.renameFileTarget();
+    const name = this.renameFileName().trim();
+    if (!target || !name) {
+      this.renameFileError.set('Ingresa un nombre.');
+      return;
+    }
+    this.renamingFile.set(true);
+    this.renameFileError.set(null);
+    this.foldersApi.renameFile(target.id, name).subscribe({
+      next: () => {
+        this.renamingFile.set(false);
+        this.showRenameFile.set(false);
+        this.reload();
+      },
+      error: (err: { status?: number }) => {
+        this.renameFileError.set(
+          err?.status === 409
+            ? 'Ya existe un archivo con ese nombre.'
+            : err?.status === 400
+              ? 'El nombre debe conservar la extensión.'
+              : 'No se pudo renombrar.'
+        );
+        this.renamingFile.set(false);
+      },
+    });
+  }
+
+  protected async openMoveFile(file: DriveFile): Promise<void> {
+    this.moveFileTarget.set(file);
+    this.destinationId.set('');
+    this.moveError.set(null);
+    this.showMoveFile.set(true);
+    this.destinations.set(await this.flatTree('', null));
+  }
+
+  protected saveMoveFile(): void {
+    const target = this.moveFileTarget();
+    const destinationId = this.destinationId();
+    if (!target || !destinationId) {
+      this.moveError.set('Elige la carpeta destino.');
+      return;
+    }
+    this.moving.set(true);
+    this.moveError.set(null);
+    this.foldersApi.moveFile(target.id, destinationId).subscribe({
+      next: () => {
+        this.moving.set(false);
+        this.showMoveFile.set(false);
+        this.reload();
+      },
+      error: () => {
+        this.moveError.set('No se pudo mover el archivo.');
+        this.moving.set(false);
+      },
+    });
+  }
+
+  protected openReplace(file: DriveFile): void {
+    this.replaceTarget.set(file);
+    this.replaceError.set(null);
+    this.showReplace.set(true);
+  }
+
+  protected onReplaceSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    const target = this.replaceTarget();
+    if (!file || !target) {
+      return;
+    }
+    this.replacing.set(true);
+    this.uploadPercent.set(0);
+    this.replaceError.set(null);
+    this.foldersApi.editContent(target.id, file).subscribe({
+      next: (event) => {
+        if (event.type === HttpEventType.UploadProgress) {
+          const total = event.total ?? file.size;
+          this.uploadPercent.set(total ? Math.round((event.loaded / total) * 100) : 0);
+        } else if (event.type === HttpEventType.Response) {
+          this.replacing.set(false);
+          this.uploadPercent.set(0);
+          this.showReplace.set(false);
+          this.reload();
+        }
+      },
+      error: (err: { status?: number }) => {
+        this.replaceError.set(
+          err?.status === 413
+            ? 'El archivo excede tu cuota disponible.'
+            : err?.status === 400
+              ? 'Archivo inválido (solo .txt y .md en UTF-8).'
+              : 'No se pudo reemplazar el contenido.'
+        );
+        this.replacing.set(false);
+        this.uploadPercent.set(0);
+      },
+    });
+  }
 }

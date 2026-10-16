@@ -12,8 +12,8 @@
   align-items: center;
   gap: 0.75rem;
   padding: 0.6rem 1.25rem;
-  border-bottom: 1px solid var(--surface-border);
-  background: var(--surface-0);
+  border-bottom: 1px solid var(--p-content-border-color);
+  background: var(--p-content-background);
 }
 
 .brand {
@@ -31,8 +31,8 @@
   width: 2.25rem;
   height: 2.25rem;
   border-radius: 0.75rem;
-  background: var(--primary-color);
-  color: var(--primary-contrast-color);
+  background: var(--p-primary-color);
+  color: var(--p-primary-contrast-color);
 }
 
 .brand-name {
@@ -48,7 +48,7 @@
 }
 
 .user-email {
-  color: var(--text-color-secondary);
+  color: var(--p-text-muted-color);
   font-weight: 600;
   max-width: 16rem;
   overflow: hidden;
@@ -67,8 +67,8 @@
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid var(--surface-border);
-  background: var(--surface-0);
+  border-right: 1px solid var(--p-content-border-color);
+  background: var(--p-content-background);
   padding: 0.75rem;
   transition: width 0.2s ease;
 }
@@ -84,21 +84,21 @@
   align-items: center;
   gap: 0.75rem;
   padding: 0.65rem 0.9rem;
-  border-radius: var(--border-radius);
+  border-radius: var(--p-border-radius-md);
   text-decoration: none;
-  color: var(--text-color-secondary);
+  color: var(--p-text-muted-color);
   font-weight: 600;
   white-space: nowrap;
 }
 
 .side-link:hover {
-  background: var(--surface-100);
-  color: var(--text-color);
+  background: var(--p-content-hover-background);
+  color: var(--p-text-color);
 }
 
-.side-link.active {
-  background: var(--primary-100);
-  color: var(--primary-700);
+.side-link.active-item {
+  background: var(--p-highlight-background);
+  color: var(--p-highlight-color);
 }
 
 .shell.collapsed .sidebar {
@@ -119,7 +119,7 @@
   flex-direction: column;
   gap: 0.5rem;
   padding: 0.75rem 0.5rem 0.25rem;
-  color: var(--text-color-secondary);
+  color: var(--p-text-muted-color);
 }
 
 .storage-label {
@@ -152,7 +152,7 @@
 }
 
 .form-error {
-  color: var(--red-500);
+  color: var(--p-red-500);
   margin: 0.25rem 0 0;
 }
 

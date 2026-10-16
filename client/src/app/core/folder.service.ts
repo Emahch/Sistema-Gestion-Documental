@@ -1,8 +1,8 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpEvent } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { RestConstants } from './rest-constants';
-import type { DriveFolder, FolderChildren } from '../models/folder.model';
+import type { DriveFile, DriveFolder, FolderChildren } from '../models/folder.model';
 
 @Injectable({ providedIn: 'root' })
 export class FolderService {
@@ -45,5 +45,45 @@ export class FolderService {
 
   trash(id: string): Observable<{ deletionId: string; folders: number; files: number }> {
     return this.http.delete<{ deletionId: string; folders: number; files: number }>(`${this.baseUrl}/folders/${id}`);
+  }
+
+  uploadFile(folderId: string, file: File): Observable<HttpEvent<DriveFile>> {
+    const form = new FormData();
+    form.append('file', file, file.name);
+    form.append('folderId', folderId);
+    return this.http.post<DriveFile>(`${this.baseUrl}/files`, form, {
+      reportProgress: true,
+      observe: 'events',
+    });
+  }
+
+  editFileContent(id: string, file: File): Observable<HttpEvent<DriveFile>> {
+    const form = new FormData();
+    form.append('file', file, file.name);
+    return this.http.put<DriveFile>(`${this.baseUrl}/files/${id}/content`, form, {
+      reportProgress: true,
+      observe: 'events',
+    });
+  }
+
+  renameFile(id: string, name: string): Observable<DriveFile> {
+    return this.http.patch<DriveFile>(`${this.baseUrl}/files/${id}`, { name });
+  }
+
+  moveFile(id: string, destinationId: string): Observable<DriveFile> {
+    return this.http.patch<DriveFile>(`${this.baseUrl}/files/${id}/move`, { destinationId });
+  }
+
+  editContent(id: string, file: File): Observable<HttpEvent<DriveFile>> {
+    const form = new FormData();
+    form.append('file', file, file.name);
+    return this.http.put<DriveFile>(`${this.baseUrl}/files/${id}/content`, form, {
+      reportProgress: true,
+      observe: 'events',
+    });
+  }
+
+  downloadFile(id: string): Observable<Blob> {
+    return this.http.get(`${this.baseUrl}/files/${id}/content`, { responseType: 'blob' });
   }
 }

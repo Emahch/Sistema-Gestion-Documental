@@ -19,14 +19,14 @@
   <div class="body">
     <aside class="sidebar">
       <nav class="side-nav">
-        <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" class="side-link">
+        <a routerLink="/" routerLinkActive="active-item" [routerLinkActiveOptions]="{ exact: true }" class="side-link">
           <i class="pi pi-home"></i><span class="side-label">Inicio</span>
         </a>
-        <a routerLink="/drive" routerLinkActive="active" class="side-link">
+        <a routerLink="/drive" routerLinkActive="active-item" class="side-link">
           <i class="pi pi-folder"></i><span class="side-label">Mi unidad</span>
         </a>
         @if (auth.isAdmin()) {
-          <a routerLink="/users" routerLinkActive="active" class="side-link">
+          <a routerLink="/users" routerLinkActive="active-item" class="side-link">
             <i class="pi pi-users"></i><span class="side-label">Usuarios</span>
           </a>
         }

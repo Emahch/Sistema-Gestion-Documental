@@ -8,6 +8,7 @@ import { notFound, errorHandler } from './middlewares/errors';
 import authRouter from './routes/auth.routes';
 import userRouter from './routes/user.routes';
 import folderRouter from './routes/folder.routes';
+import fileRouter from './routes/file.routes';
 
 const app = express();
 
@@ -41,6 +42,7 @@ app.get('/api/health', (req: Request, res: Response) => {
 app.use('/api/auth', authRouter);
 app.use('/api/users', userRouter);
 app.use('/api/folders', folderRouter);
+app.use('/api/files', fileRouter);
 
 app.use(notFound);
 app.use(errorHandler);

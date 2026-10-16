@@ -30,10 +30,10 @@
 
 .error-banner {
   padding: 0.75rem 1rem;
-  border-radius: var(--border-radius);
-  background: var(--red-50);
-  color: var(--red-700);
-  border: 1px solid var(--red-200);
+  border-radius: var(--p-border-radius-md);
+  background: light-dark(var(--p-red-50), color-mix(in srgb, var(--p-red-500) 16%, transparent));
+  color: light-dark(var(--p-red-700), var(--p-red-200));
+  border: 1px solid light-dark(var(--p-red-200), color-mix(in srgb, var(--p-red-500) 40%, transparent));
 }
 
 .list-rows {
@@ -46,7 +46,8 @@
   align-items: center;
   gap: 0.75rem;
   padding: 0.6rem 0.75rem;
-  border-bottom: 1px solid var(--surface-border);
+  border-bottom: 1px solid var(--p-content-border-color);
+  cursor: pointer;
 }
 
 .list-row:last-child {
@@ -54,7 +55,7 @@
 }
 
 .list-row:hover {
-  background: var(--surface-50);
+  background: var(--p-content-hover-background);
 }
 
 .row-open {
@@ -63,27 +64,19 @@
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  background: none;
-  border: none;
-  cursor: pointer;
   color: inherit;
-  font: inherit;
   text-align: left;
   padding: 0;
-}
-
-.row-open.static {
-  cursor: default;
 }
 
 .row-icon {
   font-size: 1.25rem;
   flex-shrink: 0;
-  color: var(--text-color-secondary);
+  color: var(--p-text-muted-color);
 }
 
 .row-icon.folder {
-  color: var(--primary-color);
+  color: var(--p-primary-color);
 }
 
 .row-name {
@@ -94,7 +87,7 @@
 }
 
 .row-meta {
-  color: var(--text-color-secondary);
+  color: var(--p-text-muted-color);
   font-size: 0.85rem;
   white-space: nowrap;
 }
@@ -113,18 +106,19 @@
 }
 
 .grid-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.5rem;
   padding: 1rem 0.75rem;
-  border: 1px solid var(--surface-border);
-  border-radius: var(--border-radius);
-  background: var(--surface-0);
+  border-radius: var(--p-border-radius-md);
+  background: var(--p-content-background);
+  cursor: pointer;
 }
 
 .grid-card:hover {
-  background: var(--surface-50);
+  background: var(--p-content-hover-background);
 }
 
 .grid-open {
@@ -132,24 +126,18 @@
   flex-direction: column;
   align-items: center;
   gap: 0.5rem;
-  background: none;
-  border: none;
-  cursor: pointer;
+  min-width: 100%;
+  min-height: 50%;
   color: inherit;
-  font: inherit;
-}
-
-.grid-open.static {
-  cursor: default;
 }
 
 .grid-icon {
   font-size: 2.5rem;
-  color: var(--primary-color);
+  color: var(--p-primary-color);
 }
 
 .grid-icon.file {
-  color: var(--text-color-secondary);
+  color: var(--p-text-muted-color);
 }
 
 .grid-name {
@@ -162,18 +150,24 @@
   -webkit-box-orient: vertical;
 }
 
-.grid-actions {
-  display: flex;
+.card-menu-wrap {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.35rem;
+}
+
+.menu-danger {
+  color: var(--p-red-500);
 }
 
 .grid-meta {
-  color: var(--text-color-secondary);
+  color: var(--p-text-muted-color);
 }
 
 .empty {
   padding: 2rem;
   text-align: center;
-  color: var(--text-color-secondary);
+  color: var(--p-text-muted-color);
 }
 
 .form-grid {
@@ -189,7 +183,7 @@
 }
 
 .form-error {
-  color: var(--red-500);
+  color: var(--p-red-500);
   margin: 0.25rem 0 0;
 }
 
