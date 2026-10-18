@@ -170,6 +170,46 @@ router.get('/', auth, requireAdmin, controller.list);
 
 /**
  * @openapi
+ * /api/users/by-email:
+ *   get:
+ *     summary: Resuelve id y email de un usuario por su email (para compartir)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: email
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Usuario encontrado (solo id y email)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 id: { type: string }
+ *                 email: { type: string }
+ *       400:
+ *         description: Email inválido
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ *       401:
+ *         description: Sin token o inactivo
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ *       404:
+ *         description: Usuario no encontrado
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ */
+router.get('/by-email', auth, controller.findByEmail);
+
+/**
+ * @openapi
  * /api/users/{id}/status:
  *   patch:
  *     summary: Activa o desactiva un usuario (solo admin)

@@ -18,8 +18,11 @@ import { TagModule } from 'primeng/tag';
 import { ProgressBarModule } from 'primeng/progressbar';
 import { MenuItem, ConfirmationService } from 'primeng/api';
 import { FolderService } from '../../core/folder.service';
+import { ShareService } from '../../core/share.service';
+import { UserService } from '../../core/user.service';
 import type { DriveFile, DriveFolder } from '../../models/folder.model';
 import { formatBytes } from '../../shared/format';
+import { isValidEmail } from '../../shared/validators';
 
 type DriveItem =
   | { kind: 'folder'; id: string; name: string; updatedAt: string; folder: DriveFolder }
@@ -108,6 +111,18 @@ export class Drive implements OnInit {
   protected readonly replaceError = signal<string | null>(null);
   protected readonly replacing = signal(false);
 
+  protected readonly shareTarget = signal<DriveItem | null>(null);
+  protected readonly showShare = signal(false);
+  protected readonly shareEmail = signal('');
+  protected readonly sharePermission = signal<'read' | 'edit'>('read');
+  protected readonly shareError = signal<string | null>(null);
+  protected readonly sharing = signal(false);
+
+  protected readonly permissionOptions = [
+    { label: 'Lectura', value: 'read' },
+    { label: 'Edición', value: 'edit' },
+  ];
+
   protected readonly breadcrumb = computed<MenuItem[]>(() =>
     this.crumbs().map((folder, index, chain) =>
       index === chain.length - 1
@@ -118,6 +133,8 @@ export class Drive implements OnInit {
 
   constructor(
     private foldersApi: FolderService,
+    private shares: ShareService,
+    private users: UserService,
     private route: ActivatedRoute,
     private router: Router,
     private confirm: ConfirmationService,
@@ -329,17 +346,21 @@ export class Drive implements OnInit {
   }
 
   private folderMenu(folder: DriveFolder): MenuItem[] {
-    return [
+    const items: MenuItem[] = [
       { label: 'Abrir', icon: 'pi pi-folder-open', command: () => this.openFolder(folder.id) },
       { label: 'Renombrar', icon: 'pi pi-pencil', command: () => this.openRename(folder) },
       { label: 'Mover', icon: 'pi pi-send', command: () => this.openMove(folder) },
-      {
+    ];
+    if (!folder.isRoot) {
+      items.push({ label: 'Compartir', icon: 'pi pi-share-alt', command: () => this.openShare({ kind: 'folder', id: folder.id, name: folder.name, updatedAt: folder.updatedAt, folder }) });
+      items.push({
         label: 'Enviar a la papelera',
         icon: 'pi pi-trash',
         styleClass: 'menu-danger',
         command: () => this.confirmTrash(folder),
-      },
-    ];
+      });
+    }
+    return items;
   }
 
   private fileMenu(file: DriveFile): MenuItem[] {
@@ -348,6 +369,7 @@ export class Drive implements OnInit {
       { label: 'Renombrar', icon: 'pi pi-pencil', command: () => this.openRenameFile(file) },
       { label: 'Mover', icon: 'pi pi-send', command: () => this.openMoveFile(file) },
       { label: 'Reemplazar contenido', icon: 'pi pi-file-edit', command: () => this.openReplace(file) },
+      { label: 'Compartir', icon: 'pi pi-share-alt', command: () => this.openShare({ kind: 'file', id: file.id, name: file.name, updatedAt: file.updatedAt, file }) },
     ];
   }
 
@@ -483,6 +505,61 @@ export class Drive implements OnInit {
       error: () => {
         this.moveError.set('No se pudo mover el archivo.');
         this.moving.set(false);
+      },
+    });
+  }
+
+  protected openShare(item: DriveItem): void {
+    this.shareTarget.set(item);
+    this.shareEmail.set('');
+    this.sharePermission.set('read');
+    this.shareError.set(null);
+    this.showShare.set(true);
+  }
+
+  protected saveShare(): void {
+    const target = this.shareTarget();
+    const email = this.shareEmail().trim();
+    if (!target) {
+      return;
+    }
+    if (!isValidEmail(email)) {
+      this.shareError.set('Ingresa un email válido.');
+      return;
+    }
+    this.sharing.set(true);
+    this.shareError.set(null);
+    this.users.resolveByEmail(email).subscribe({
+      next: (resolved) => {
+        this.shares
+          .share({
+            resourceType: target.kind,
+            resourceId: target.id,
+            sharedWithId: resolved.id,
+            permission: this.sharePermission(),
+          })
+          .subscribe({
+            next: () => {
+              this.sharing.set(false);
+              this.showShare.set(false);
+            },
+            error: (err: { status?: number }) => {
+              this.shareError.set(
+                err?.status === 403
+                  ? 'Solo el propietario puede compartir.'
+                  : err?.status === 409
+                    ? 'Ya compartido con ese usuario.'
+                    : err?.status === 404
+                      ? 'Recurso no encontrado.'
+                      : 'No se pudo compartir.'
+              );
+              this.sharing.set(false);
+            },
+          });
+      },
+      error: (err: { status?: number }) => {
+        this.shareError.set(err?.status === 404 ? 'Ese email no está registrado.' : 'No se pudo resolver el usuario.');
+        this.sharing.set(false);
       },
     });
   }

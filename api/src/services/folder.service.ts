@@ -7,6 +7,7 @@ import { normalizeName } from '../utils/normalize';
 import type { Folder, PublicFolder } from '../types/folder';
 import type { PublicFile } from '../types/file';
 import { BadRequestError, ConflictError, ForbiddenError, HttpError, NotFoundError } from '../errors/http-error';
+import { PermissionService } from './permission.service';
 
 export interface FolderChildren {
   folders: PublicFolder[];
@@ -36,6 +37,8 @@ function toPublicFolder(folder: HydratedDocument<Folder>): PublicFolder {
 }
 
 export class FolderService {
+  private readonly permissions = new PermissionService();
+
   async root(userId: string): Promise<PublicFolder> {
     const root = await this.readableFolder(userId, null);
     return toPublicFolder(root);
@@ -50,8 +53,8 @@ export class FolderService {
     const page = toPage(pageRaw, 1);
     const limit = toPage(limitRaw, 20);
     const parent = await this.readableFolder(userId, parentId);
-    const folderFilter = { parentId: parent._id, ownerId: parent.ownerId, isDeleted: false };
-    const fileFilter = { folderId: parent._id, ownerId: parent.ownerId, isDeleted: false };
+    const folderFilter = { parentId: parent._id, isDeleted: false };
+    const fileFilter = { folderId: parent._id, isDeleted: false };
     const [folders, files, totalFolders, totalFiles] = await Promise.all([
       FolderModel.find(folderFilter)
         .sort({ nameNormalized: 1, name: 1 })
@@ -94,7 +97,7 @@ export class FolderService {
     if (!parent || parent.isDeleted) {
       throw new NotFoundError('Carpeta padre no encontrada');
     }
-    if (parent.ownerId.toString() !== userId) {
+    if (!(await this.permissions.canAccess(userId, 'folder', parent._id, 'edit'))) {
       throw new ForbiddenError('Sin acceso a la carpeta padre');
     }
     try {
@@ -131,7 +134,13 @@ export class FolderService {
     if (!cleanName) {
       throw new BadRequestError('name es obligatorio');
     }
-    const folder = await this.ownedFolder(userId, id);
+    const folder = await FolderModel.findById(id);
+    if (!folder || folder.isDeleted) {
+      throw new NotFoundError('Carpeta no encontrada');
+    }
+    if (!(await this.permissions.canAccess(userId, 'folder', folder._id, 'edit'))) {
+      throw new ForbiddenError('Sin acceso a la carpeta');
+    }
     if (folder.isRoot) {
       throw new BadRequestError('La raíz no puede renombrarse');
     }
@@ -171,7 +180,7 @@ export class FolderService {
     if (!destination || destination.isDeleted) {
       throw new NotFoundError('Carpeta destino no encontrada');
     }
-    if (destination.ownerId.toString() !== userId) {
+    if (!(await this.permissions.canAccess(userId, 'folder', destination._id, 'edit'))) {
       throw new ForbiddenError('Sin acceso a la carpeta destino');
     }
     if (destination._id.equals(folder._id)) {
@@ -330,12 +339,16 @@ export class FolderService {
   }
 
   async breadcrumb(userId: string, id: string): Promise<PublicFolder[]> {
-    const folder = await this.ownedFolder(userId, id);
+    const folder = await this.readableFolder(userId, id);
     const ancestors = await FolderModel.find({ _id: { $in: folder.ancestors }, isDeleted: false });
     const byId = new Map(ancestors.map((ancestor) => [ancestor._id.toString(), ancestor]));
-    const chain = folder.ancestors
-      .map((ancestorId) => byId.get(ancestorId.toString()))
-      .filter((ancestor): ancestor is HydratedDocument<Folder> => Boolean(ancestor));
+    const chain: HydratedDocument<Folder>[] = [];
+    for (const ancestorId of folder.ancestors) {
+      const ancestor = byId.get(ancestorId.toString());
+      if (ancestor && (await this.permissions.canAccess(userId, 'folder', ancestor._id, 'read'))) {
+        chain.push(ancestor);
+      }
+    }
     return [...chain, folder].map((item) => toPublicFolder(item));
   }
 
@@ -358,7 +371,14 @@ export class FolderService {
       }
       return root;
     }
-    return this.ownedFolder(userId, id);
+    const folder = await FolderModel.findById(id);
+    if (!folder || folder.isDeleted) {
+      throw new NotFoundError('Carpeta no encontrada');
+    }
+    if (!(await this.permissions.canAccess(userId, 'folder', folder._id, 'read'))) {
+      throw new ForbiddenError('Sin acceso a la carpeta');
+    }
+    return folder;
   }
 
   private async descendantIds(folderId: Types.ObjectId): Promise<Types.ObjectId[]> {

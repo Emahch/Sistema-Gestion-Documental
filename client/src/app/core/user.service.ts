@@ -50,4 +50,10 @@ export class UserService {
   updateMe(data: { email?: string; password?: string }): Observable<AdminUserRow> {
     return this.http.patch<AdminUserRow>(`${this.baseUrl}/users/me`, data);
   }
+
+  resolveByEmail(email: string): Observable<{ id: string; email: string }> {
+    return this.http.get<{ id: string; email: string }>(`${this.baseUrl}/users/by-email`, {
+      params: { email },
+    });
+  }
 }

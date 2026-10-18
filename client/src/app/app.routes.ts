@@ -4,6 +4,7 @@ import { adminGuard, authGuard, visitorGuard } from './core/auth.guard';
 import { Drive } from './pages/drive/drive';
 import { Home } from './pages/home/home';
 import { Login } from './pages/login/login';
+import { Shared } from './pages/shared/shared';
 import { Users } from './pages/users/users';
 
 export const routes: Routes = [
@@ -15,6 +16,8 @@ export const routes: Routes = [
     children: [
       { path: '', component: Home },
       { path: 'drive', component: Drive },
+      { path: 'shared-with-me', component: Shared, data: { mode: 'with-me' } },
+      { path: 'shared-by-me', component: Shared, data: { mode: 'by-me' } },
       { path: 'users', component: Users, canActivate: [adminGuard] },
     ],
   },

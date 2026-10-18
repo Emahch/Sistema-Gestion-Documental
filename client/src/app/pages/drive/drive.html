@@ -249,3 +249,30 @@
     <p-button label="Cerrar" (onClick)="showReplace.set(false)" />
   </ng-template>
 </p-dialog>
+
+<p-dialog header="Compartir" [(visible)]="showShare" [modal]="true" [style]="{ width: '26rem' }">
+  <div class="form-grid">
+    <p>Compartir <strong>{{ shareTarget()?.name }}</strong> con:</p>
+    <label for="sh-email">Email del usuario *</label>
+    <input pInputText id="sh-email" type="email" [ngModel]="shareEmail()" (ngModelChange)="shareEmail.set($event)" placeholder="usuario@example.com" />
+
+    <label for="sh-perm">Permiso</label>
+    <p-select
+      id="sh-perm"
+      [options]="permissionOptions"
+      [ngModel]="sharePermission()"
+      (ngModelChange)="sharePermission.set($event)"
+      optionLabel="label"
+      optionValue="value"
+      appendTo="body"
+      styleClass="w-full"
+    />
+    @if (shareError()) {
+      <p class="form-error">{{ shareError() }}</p>
+    }
+  </div>
+  <ng-template #footer>
+    <p-button label="Cancelar" severity="secondary" [text]="true" (onClick)="showShare.set(false)" />
+    <p-button label="Compartir" icon="pi pi-share-alt" [loading]="sharing()" (onClick)="saveShare()" />
+  </ng-template>
+</p-dialog>

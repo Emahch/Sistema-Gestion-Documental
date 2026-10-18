@@ -301,6 +301,18 @@ export class UserService {
     }
   }
 
+  async findByEmail(email: unknown): Promise<{ id: string; email: string }> {
+    const clean = normalizeEmail(email);
+    if (!isValidEmail(clean)) {
+      throw new BadRequestError('email inválido');
+    }
+    const user = await UserModel.findOne({ emailNormalized: clean });
+    if (!user) {
+      throw new NotFoundError('Usuario no encontrado');
+    }
+    return { id: user._id.toString(), email: user.email };
+  }
+
   private toPublicUser(user: HydratedDocument<User>): PublicUser {
     return {
       id: user._id.toString(),

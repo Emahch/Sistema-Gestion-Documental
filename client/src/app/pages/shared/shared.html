@@ -1,0 +1,60 @@
+<section class="shared">
+  <div class="shared-head">
+    <div>
+      <h1>{{ title() }}</h1>
+      <p class="subtitle">{{ subtitle() }} ({{ total() }})</p>
+    </div>
+  </div>
+
+  @if (error()) {
+    <div class="error-banner">{{ error() }}</div>
+  }
+
+  <p-card>
+    <p-table [value]="shares()" [loading]="loading()" stripedRows>
+      <ng-template pTemplate="header">
+        <tr>
+          <th>Nombre</th>
+          <th>Tipo</th>
+          <th>{{ mode() === 'with-me' ? 'Propietario' : 'Compartido con' }}</th>
+          <th>Permiso</th>
+          <th>Fecha</th>
+          <th></th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-s>
+        <tr>
+          <td>
+            <i class="pi" [class.pi-folder]="s.resourceType === 'folder'" [class.pi-file]="s.resourceType !== 'folder'"></i>
+            {{ s.resourceName }}
+          </td>
+          <td><p-tag [value]="s.resourceType" severity="info" /></td>
+          <td>{{ mode() === 'with-me' ? s.ownerEmail : s.sharedWithEmail }}</td>
+          <td><p-tag [value]="s.permission" [severity]="s.permission === 'edit' ? 'warn' : 'info'" /></td>
+          <td>{{ s.createdAt | date: 'medium' }}</td>
+          <td class="row-actions">
+            @if (s.resourceType === 'folder') {
+              <p-button icon="pi pi-folder-open" [text]="true" [rounded]="true" severity="secondary" ariaLabel="Abrir" (onClick)="openResource(s)" />
+            }
+            @if (mode() === 'by-me') {
+              <p-button
+                icon="pi pi-user-minus"
+                [text]="true"
+                [rounded]="true"
+                severity="danger"
+                ariaLabel="Retirar acceso"
+                [loading]="leavingId() === s.id"
+                (onClick)="unshare(s)"
+              />
+            }
+          </td>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="emptymessage">
+        <tr>
+          <td colspan="6">Nada por aquí todavía.</td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </p-card>
+</section>

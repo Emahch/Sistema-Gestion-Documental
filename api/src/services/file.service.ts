@@ -5,6 +5,7 @@ import { mongoose } from '../config/db';
 import { UserModel } from '../models/user.model';
 import { FolderModel } from '../models/folder.model';
 import { FileModel } from '../models/file.model';
+import { ShareModel } from '../models/share.model';
 import { ActivityLogModel } from '../models/activity-log.model';
 import { normalizeName } from '../utils/normalize';
 import { deleteGridFsObject, parseUpload } from '../utils/upload';
@@ -18,6 +19,7 @@ import {
   PayloadTooLargeError,
 } from '../errors/http-error';
 import path from 'path';
+import { PermissionService, RequiredPermission } from './permission.service';
 
 function toPublicFile(file: HydratedDocument<File>): PublicFile {
   return {
@@ -52,6 +54,8 @@ async function reserveQuota(
 }
 
 export class FileService {
+  private readonly permissions = new PermissionService();
+
   async uploadFile(userId: string, req: Request): Promise<PublicFile> {
     const ownerId = new mongoose.Types.ObjectId(userId);
     const me = await UserModel.findById(ownerId);
@@ -77,7 +81,7 @@ export class FileService {
       await deleteGridFsObject(uploaded.gridFsId);
       throw new NotFoundError('Carpeta destino no encontrada');
     }
-    if (folder.ownerId.toString() !== userId) {
+    if (!(await this.permissions.canAccess(userId, 'folder', folder._id, 'edit'))) {
       await deleteGridFsObject(uploaded.gridFsId);
       throw new ForbiddenError('Sin acceso a la carpeta destino');
     }
@@ -123,6 +127,36 @@ export class FileService {
           ],
           { session, ordered: true }
         );
+        if (folder.ownerId.toString() !== userId) {
+          await ShareModel.findOneAndUpdate(
+            { resourceId: created._id, sharedWithId: folder.ownerId },
+            {
+              $set: { permission: 'edit', origin: 'auto' },
+              $setOnInsert: {
+                resourceType: 'file',
+                resourceId: created._id,
+                ownerId,
+                sharedWithId: folder.ownerId,
+              },
+            },
+            { new: true, upsert: true, runValidators: true, session }
+          );
+          await ActivityLogModel.create(
+            [
+              {
+                userId: ownerId,
+                action: 'SHARE',
+                status: 'success',
+                resourceType: 'file',
+                resourceId: created._id,
+                resourceSnapshot: { name: created.name },
+                details: { sharedWithId: folder.ownerId, permission: 'edit', origin: 'auto' },
+                affectedUserIds: [folder.ownerId],
+              },
+            ],
+            { session, ordered: true }
+          );
+        }
       });
       if (!created) {
         throw new HttpError(500, 'No se pudo crear el archivo');
@@ -143,12 +177,12 @@ export class FileService {
   }
 
   async getFile(userId: string, id: string): Promise<PublicFile> {
-    const file = await this.ownedFile(userId, id);
+    const file = await this.accessibleFile(userId, id, 'read');
     return toPublicFile(file);
   }
 
   async downloadFile(userId: string, id: string, res: Response): Promise<Readable> {
-    const file = await this.ownedFile(userId, id);
+    const file = await this.accessibleFile(userId, id, 'read');
     await ActivityLogModel.create({
       userId: new mongoose.Types.ObjectId(userId),
       action: 'DOWNLOAD',
@@ -187,7 +221,7 @@ export class FileService {
   }
 
   async editContent(userId: string, id: string, req: Request): Promise<PublicFile> {
-    const file = await this.ownedFile(userId, id);
+    const file = await this.accessibleFile(userId, id, 'edit');
     const uploaded = await parseUpload(req);
     const session = await mongoose.startSession();
     const previousGridFsId = file.gridFsId;
@@ -250,7 +284,7 @@ export class FileService {
     if (!cleanName) {
       throw new BadRequestError('name es obligatorio');
     }
-    const file = await this.ownedFile(userId, id);
+    const file = await this.accessibleFile(userId, id, 'edit');
     if (path.extname(cleanName).toLowerCase() !== path.extname(file.name).toLowerCase()) {
       throw new BadRequestError('La extensión debe conservarse');
     }
@@ -317,11 +351,25 @@ export class FileService {
   }
 
   private async ownedFile(userId: string, id: string): Promise<HydratedDocument<File>> {
+    return this.accessibleFile(userId, id, 'owner');
+  }
+
+  private async accessibleFile(
+    userId: string,
+    id: string,
+    required: 'owner' | RequiredPermission
+  ): Promise<HydratedDocument<File>> {
     const file = await FileModel.findById(id);
     if (!file || file.isDeleted) {
       throw new NotFoundError('Archivo no encontrado');
     }
-    if (file.ownerId.toString() !== userId) {
+    if (required === 'owner') {
+      if (file.ownerId.toString() !== userId) {
+        throw new ForbiddenError('Sin acceso al archivo');
+      }
+      return file;
+    }
+    if (!(await this.permissions.canAccess(userId, 'file', file._id, required))) {
       throw new ForbiddenError('Sin acceso al archivo');
     }
     return file;

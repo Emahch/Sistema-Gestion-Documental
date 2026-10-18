@@ -1,0 +1,37 @@
+.shared {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.shared-head h1 {
+  margin: 0;
+}
+
+.subtitle {
+  margin: 0.25rem 0 0;
+  color: var(--p-text-muted-color);
+}
+
+.error-banner {
+  padding: 0.75rem 1rem;
+  border-radius: var(--p-border-radius-md);
+  background: light-dark(var(--p-red-50), color-mix(in srgb, var(--p-red-500) 16%, transparent));
+  color: light-dark(var(--p-red-700), var(--p-red-200));
+  border: 1px solid light-dark(var(--p-red-200), color-mix(in srgb, var(--p-red-500) 40%, transparent));
+}
+
+.row-actions {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.pi-folder {
+  color: var(--p-primary-color);
+  margin-right: 0.5rem;
+}
+
+.pi-file {
+  color: var(--p-text-muted-color);
+  margin-right: 0.5rem;
+}

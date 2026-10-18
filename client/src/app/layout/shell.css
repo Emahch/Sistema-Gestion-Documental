@@ -88,7 +88,7 @@
   text-decoration: none;
   color: var(--p-text-muted-color);
   font-weight: 600;
-  white-space: nowrap;
+  white-space: fit-content;
 }
 
 .side-link:hover {

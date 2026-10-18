@@ -32,6 +32,16 @@ export class UserController {
     }
   };
 
+  findByEmail = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const email = typeof req.query.email === 'string' ? req.query.email : '';
+      const user = await this.userService.findByEmail(email);
+      res.json(user);
+    } catch (err) {
+      next(err);
+    }
+  };
+
   setStatus = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const user = await this.userService.setActiveStatus(routeParam(req), req.body.isActive, req.user?.id ?? null);
