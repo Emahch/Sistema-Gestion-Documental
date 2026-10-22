@@ -1,10 +1,25 @@
 <section class="drive">
-  <p-breadcrumb [model]="breadcrumb()" styleClass="crumbs" />
+  <div class="drive-path">
+    <p-button
+      label="Mi unidad"
+      icon="pi pi-home"
+      [text]="true"
+      severity="secondary"
+      (onClick)="openFolder(null)"
+    />
+    @for (crumb of crumbs(); track crumb.id) {
+      <span class="crumb-sep">/</span>
+      <p-button
+        [label]="crumb.name"
+        [text]="true"
+        severity="secondary"
+        (onClick)="openFolder(crumb.id)"
+      />
+    }
+  </div>
 
   <div class="drive-head">
-    <div>
-      <h1>{{ currentFolder()?.name ?? 'Mi unidad' }}</h1>
-    </div>
+    <div></div>
     <div class="drive-tools">
       <p-button
         [icon]="layout() === 'list' ? 'pi pi-th-large' : 'pi pi-bars'"
@@ -32,111 +47,16 @@
     <p-progressbar [value]="uploadPercent()" />
   }
 
-  <p-dataview
-    [value]="items()"
+  <app-drive-view
+    [items]="items()"
     [layout]="layout()"
     [loading]="loading()"
-  >
-    <ng-template #list let-items>
-      <div class="list-rows">
-        @for (item of items; track item.id) {
-          <div
-            class="list-row"
-            role="button"
-            tabindex="0"
-            (click)="activateItem(item)"
-            (keydown.enter)="activateItem(item)"
-            (keydown.space)="activateItem(item)"
-          >
-            @if (item.kind === 'folder') {
-              <span class="row-open">
-                <i class="pi pi-folder row-icon folder"></i>
-                <span class="row-name">{{ item.name }}</span>
-              </span>
-              <span class="row-meta">{{ item.updatedAt | date: 'medium' }}</span>
-              <div class="row-actions" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
-                <p-button icon="pi pi-pencil" [text]="true" [rounded]="true" severity="secondary" ariaLabel="Renombrar" (onClick)="openRename(item.folder)" />
-                <p-button icon="pi pi-send" [text]="true" [rounded]="true" severity="secondary" ariaLabel="Mover" (onClick)="openMove(item.folder)" />
-                <p-button icon="pi pi-trash" [text]="true" [rounded]="true" severity="danger" ariaLabel="Enviar a la papelera" (onClick)="confirmTrash(item.folder)" />
-              </div>
-            } @else {
-              <span class="row-open">
-                <i class="pi pi-file row-icon"></i>
-                <span class="row-name">{{ item.name }}</span>
-              </span>
-              <p-tag [value]="item.file.mimeType || '—'" severity="info" />
-              <span class="row-meta">{{ formatBytes(item.file.size) }} · {{ item.updatedAt | date: 'medium' }}</span>
-              <div class="row-actions" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
-                <p-button icon="pi pi-pencil" [text]="true" [rounded]="true" severity="secondary" ariaLabel="Renombrar archivo" (onClick)="openRenameFile(item.file)" />
-                <p-button icon="pi pi-send" [text]="true" [rounded]="true" severity="secondary" ariaLabel="Mover archivo" (onClick)="openMoveFile(item.file)" />
-                <p-button icon="pi pi-file-edit" [text]="true" [rounded]="true" severity="secondary" ariaLabel="Reemplazar contenido" (onClick)="openReplace(item.file)" />
-                <p-button
-                  icon="pi pi-download"
-                  [text]="true"
-                  [rounded]="true"
-                  severity="secondary"
-                  ariaLabel="Descargar archivo"
-                  [loading]="downloadingId() === item.id"
-                  (onClick)="downloadFile(item)"
-                />
-              </div>
-            }
-          </div>
-        }
-      </div>
-    </ng-template>
-    <ng-template #grid let-items>
-      <div class="grid-cards">
-        @for (item of items; track item.id) {
-          <div
-            class="grid-card"
-            role="button"
-            tabindex="0"
-            (click)="activateItem(item)"
-            (keydown.enter)="activateItem(item)"
-            (keydown.space)="activateItem(item)"
-          >
-            @if (item.kind === 'folder') {
-              <span class="grid-open">
-                <i class="pi pi-folder grid-icon"></i>
-                <span class="grid-name">{{ item.name }}</span>
-              </span>
-              <span class="card-menu-wrap" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
-                <p-button
-                  icon="pi pi-ellipsis-v"
-                  [text]="true"
-                  [rounded]="true"
-                  severity="secondary"
-                  ariaLabel="Opciones"
-                  (onClick)="openItemMenu($event, item)"
-                />
-              </span>
-            } @else {
-              <span class="grid-open">
-                <i class="pi pi-file grid-icon file"></i>
-                <span class="grid-name">{{ item.name }}</span>
-              </span>
-              <p-tag [value]="item.file.mimeType || '—'" severity="info" />
-              <small class="grid-meta">{{ formatBytes(item.file.size) }}</small>
-              <span class="card-menu-wrap" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
-                <p-button
-                  icon="pi pi-ellipsis-v"
-                  [text]="true"
-                  [rounded]="true"
-                  severity="secondary"
-                  ariaLabel="Opciones"
-                  (onClick)="openItemMenu($event, item)"
-                />
-              </span>
-            }
-          </div>
-        }
-      </div>
-    </ng-template>
-    <ng-template #emptymessage>
-      <p class="empty">Esta carpeta está vacía.</p>
-    </ng-template>
-  </p-dataview>
+    emptyText="Esta carpeta está vacía."
+    [actions]="rowActions"
+    (activate)="activateItem($event)"
+    (action)="onViewAction($event)"
+    (menu)="openItemMenu($event.event, $event.item)"
+  />
   <p-menu #itemMenu [model]="menuItems()" [popup]="true" />
 </section>
 
@@ -250,29 +170,9 @@
   </ng-template>
 </p-dialog>
 
-<p-dialog header="Compartir" [(visible)]="showShare" [modal]="true" [style]="{ width: '26rem' }">
-  <div class="form-grid">
-    <p>Compartir <strong>{{ shareTarget()?.name }}</strong> con:</p>
-    <label for="sh-email">Email del usuario *</label>
-    <input pInputText id="sh-email" type="email" [ngModel]="shareEmail()" (ngModelChange)="shareEmail.set($event)" placeholder="usuario@example.com" />
-
-    <label for="sh-perm">Permiso</label>
-    <p-select
-      id="sh-perm"
-      [options]="permissionOptions"
-      [ngModel]="sharePermission()"
-      (ngModelChange)="sharePermission.set($event)"
-      optionLabel="label"
-      optionValue="value"
-      appendTo="body"
-      styleClass="w-full"
-    />
-    @if (shareError()) {
-      <p class="form-error">{{ shareError() }}</p>
-    }
-  </div>
-  <ng-template #footer>
-    <p-button label="Cancelar" severity="secondary" [text]="true" (onClick)="showShare.set(false)" />
-    <p-button label="Compartir" icon="pi pi-share-alt" [loading]="sharing()" (onClick)="saveShare()" />
-  </ng-template>
-</p-dialog>
+<app-permissions-dialog
+  [(visible)]="showPermissions"
+  [resourceType]="permTarget()?.kind ?? 'folder'"
+  [resourceId]="permTarget()?.id ?? ''"
+  [resourceName]="permTarget()?.name ?? ''"
+/>

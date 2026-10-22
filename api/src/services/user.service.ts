@@ -301,6 +301,22 @@ export class UserService {
     }
   }
 
+  async searchUsers(query: unknown, currentUserId: string): Promise<{ id: string; email: string }[]> {
+    const clean = String(query ?? '').trim().toLowerCase();
+    if (clean.length < 2) {
+      return [];
+    }
+    const pattern = new RegExp(clean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const users = await UserModel.find({
+      emailNormalized: pattern,
+      isActive: true,
+      _id: { $ne: new mongoose.Types.ObjectId(currentUserId) },
+    })
+      .sort({ emailNormalized: 1 })
+      .limit(10);
+    return users.map((user) => ({ id: user._id.toString(), email: user.email }));
+  }
+
   async findByEmail(email: unknown): Promise<{ id: string; email: string }> {
     const clean = normalizeEmail(email);
     if (!isValidEmail(clean)) {

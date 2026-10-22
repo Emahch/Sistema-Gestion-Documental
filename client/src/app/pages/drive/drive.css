@@ -10,12 +10,26 @@
   padding: 0;
 }
 
+.drive-path {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.crumb-sep {
+  color: var(--text-color-secondary);
+  margin: 0 0.25rem;
+}
+
 .drive-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  flex-wrap: wrap;
   gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
 }
 
 .drive-head h1 {
@@ -34,141 +48,6 @@
   background: light-dark(var(--p-red-50), color-mix(in srgb, var(--p-red-500) 16%, transparent));
   color: light-dark(var(--p-red-700), var(--p-red-200));
   border: 1px solid light-dark(var(--p-red-200), color-mix(in srgb, var(--p-red-500) 40%, transparent));
-}
-
-.list-rows {
-  display: flex;
-  flex-direction: column;
-}
-
-.list-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.6rem 0.75rem;
-  border-bottom: 1px solid var(--p-content-border-color);
-  cursor: pointer;
-}
-
-.list-row:last-child {
-  border-bottom: none;
-}
-
-.list-row:hover {
-  background: var(--p-content-hover-background);
-}
-
-.row-open {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  color: inherit;
-  text-align: left;
-  padding: 0;
-}
-
-.row-icon {
-  font-size: 1.25rem;
-  flex-shrink: 0;
-  color: var(--p-text-muted-color);
-}
-
-.row-icon.folder {
-  color: var(--p-primary-color);
-}
-
-.row-name {
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.row-meta {
-  color: var(--p-text-muted-color);
-  font-size: 0.85rem;
-  white-space: nowrap;
-}
-
-.row-actions {
-  display: flex;
-  margin-left: auto;
-  flex-shrink: 0;
-}
-
-.grid-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
-  gap: 0.75rem;
-  padding: 0.75rem;
-}
-
-.grid-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 1rem 0.75rem;
-  border-radius: var(--p-border-radius-md);
-  background: var(--p-content-background);
-  cursor: pointer;
-}
-
-.grid-card:hover {
-  background: var(--p-content-hover-background);
-}
-
-.grid-open {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  min-width: 100%;
-  min-height: 50%;
-  color: inherit;
-}
-
-.grid-icon {
-  font-size: 2.5rem;
-  color: var(--p-primary-color);
-}
-
-.grid-icon.file {
-  color: var(--p-text-muted-color);
-}
-
-.grid-name {
-  font-weight: 600;
-  text-align: center;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
-
-.card-menu-wrap {
-  position: absolute;
-  top: 0.35rem;
-  right: 0.35rem;
-}
-
-.menu-danger {
-  color: var(--p-red-500);
-}
-
-.grid-meta {
-  color: var(--p-text-muted-color);
-}
-
-.empty {
-  padding: 2rem;
-  text-align: center;
-  color: var(--p-text-muted-color);
 }
 
 .form-grid {

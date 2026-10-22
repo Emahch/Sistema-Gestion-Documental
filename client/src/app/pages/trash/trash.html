@@ -1,0 +1,90 @@
+<section class="trash">
+  <div class="trash-head">
+    <div>
+      <h1>{{ contents()?.name ?? 'Papelera' }}</h1>
+      <p class="subtitle">
+        @if (contents()) {
+          Contenido eliminado · {{ viewItems().length }} elementos
+        } @else {
+          Elementos que enviaste a la papelera ({{ entries().length }})
+        }
+      </p>
+    </div>
+    <div class="trash-tools">
+      <p-button
+        [icon]="layout() === 'list' ? 'pi pi-th-large' : 'pi pi-bars'"
+        [text]="true"
+        [rounded]="true"
+        severity="secondary"
+        ariaLabel="Alternar vista de lista y cuadrícula"
+        (onClick)="layout.set(layout() === 'list' ? 'grid' : 'list')"
+      />
+    </div>
+  </div>
+
+  @if (crumbs().length > 0) {
+    <div class="trash-path">
+      <p-button
+        label="Papelera"
+        icon="pi pi-arrow-left"
+        [text]="true"
+        severity="secondary"
+        (onClick)="goBack()"
+      />
+      @for (crumb of crumbs(); track crumb.id) {
+        <span class="crumb">{{ crumb.name }}</span>
+      }
+    </div>
+  }
+
+  @if (error()) {
+    <div class="error-banner">{{ error() }}</div>
+  }
+
+  <app-drive-view
+    [items]="viewItems()"
+    [layout]="layout()"
+    [loading]="loading()"
+    [actions]="rowActions"
+    emptyText="Esta carpeta eliminada está vacía."
+    (activate)="openFolder($event)"
+    (action)="onAction($event)"
+    (menu)="openItemMenu($event.event, $event.item)"
+  />
+
+  <p-menu #itemMenu [model]="menuItems()" [popup]="true" />
+</section>
+
+<p-dialog
+  header="Restaurar en otra ubicación"
+  [(visible)]="showRestore"
+  [modal]="true"
+  [style]="{ width: '26rem' }"
+>
+  <div class="form-grid">
+    <p>
+      Se restaurará <strong>{{ restoreTarget()?.name }}</strong> en la carpeta que elijas.
+    </p>
+    <label for="t-dest">Carpeta destino</label>
+    <p-select
+      id="t-dest"
+      [options]="destinations()"
+      [ngModel]="destinationId()"
+      (ngModelChange)="destinationId.set($event)"
+      optionLabel="label"
+      optionValue="value"
+      placeholder="Elige destino"
+      appendTo="body"
+      styleClass="w-full"
+    />
+    @if (restoreError()) {
+      <p class="form-error">{{ restoreError() }}</p>
+    }
+  </div>
+  <ng-template #footer>
+    <p-button label="Cancelar" severity="secondary" [text]="true" (onClick)="showRestore.set(false)" />
+    <p-button label="Restaurar" icon="pi pi-refresh" [loading]="restoring()" (onClick)="saveRestore()" />
+  </ng-template>
+</p-dialog>
+
+<p-confirmDialog />

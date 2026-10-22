@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { RestConstants } from './rest-constants';
-import type { PagedShares, ShareItem, ShareRequest } from '../models/share.model';
+import type { PagedShares, ShareItem, SharePermission, ShareRequest } from '../models/share.model';
 
 @Injectable({ providedIn: 'root' })
 export class ShareService {
@@ -17,6 +17,16 @@ export class ShareService {
 
   share(data: ShareRequest): Observable<ShareItem> {
     return this.http.post<ShareItem>(`${this.baseUrl}/shares`, data);
+  }
+
+  forResource(resourceType: string, resourceId: string): Observable<ShareItem[]> {
+    return this.http.get<ShareItem[]>(`${this.baseUrl}/shares/resource`, {
+      params: { resourceType, resourceId },
+    });
+  }
+
+  updatePermission(resourceId: string, sharedWithId: string, permission: SharePermission): Observable<ShareItem> {
+    return this.http.patch<ShareItem>(`${this.baseUrl}/shares`, { resourceId, sharedWithId, permission });
   }
 
   remove(resourceId: string, sharedWithId: string): Observable<void> {

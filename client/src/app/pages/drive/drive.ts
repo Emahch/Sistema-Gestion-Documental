@@ -1,48 +1,42 @@
 import { Component, OnInit, ViewChild, computed, signal } from '@angular/core';
-import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { firstValueFrom } from 'rxjs';
 import { HttpEventType } from '@angular/common/http';
-import { BreadcrumbModule } from 'primeng/breadcrumb';
 import { ButtonModule } from 'primeng/button';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
-import { DataViewModule } from 'primeng/dataview';
 import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
 import { MenuModule } from 'primeng/menu';
 import { Menu } from 'primeng/menu';
 import { SelectModule } from 'primeng/select';
-import { TagModule } from 'primeng/tag';
 import { ProgressBarModule } from 'primeng/progressbar';
 import { MenuItem, ConfirmationService } from 'primeng/api';
 import { FolderService } from '../../core/folder.service';
-import { ShareService } from '../../core/share.service';
-import { UserService } from '../../core/user.service';
+import { FolderTreeService } from '../../core/folder-tree.service';
+import { AuthService } from '../../core/auth.service';
+import {
+  DriveView,
+  DriveViewAction,
+  DriveViewItem,
+} from '../../shared/components/drive-view/drive-view';
+import { PermissionsDialog } from '../../shared/components/permissions-dialog/permissions-dialog';
 import type { DriveFile, DriveFolder } from '../../models/folder.model';
 import { formatBytes } from '../../shared/format';
-import { isValidEmail } from '../../shared/validators';
-
-type DriveItem =
-  | { kind: 'folder'; id: string; name: string; updatedAt: string; folder: DriveFolder }
-  | { kind: 'file'; id: string; name: string; updatedAt: string; file: DriveFile };
 
 @Component({
   selector: 'app-drive',
   imports: [
-    DatePipe,
     FormsModule,
-    BreadcrumbModule,
     ButtonModule,
     ConfirmDialogModule,
-    DataViewModule,
     DialogModule,
+    DriveView,
     InputTextModule,
     MenuModule,
+    PermissionsDialog,
     ProgressBarModule,
     SelectModule,
-    TagModule,
   ],
   templateUrl: './drive.html',
   styleUrl: './drive.css',
@@ -57,22 +51,37 @@ export class Drive implements OnInit {
   protected readonly error = signal<string | null>(null);
   protected readonly layout = signal<'list' | 'grid'>('grid');
 
-  protected readonly items = computed<DriveItem[]>(() => [
+  protected readonly items = computed<DriveViewItem[]>(() => [
     ...this.folders().map((folder) => ({
-      kind: 'folder' as const,
       id: folder.id,
+      kind: 'folder' as const,
       name: folder.name,
       updatedAt: folder.updatedAt,
-      folder,
+      meta: this.ownerLabel(folder.ownerEmail, folder.ownerId),
+      data: folder,
     })),
     ...this.files().map((file) => ({
-      kind: 'file' as const,
       id: file.id,
+      kind: 'file' as const,
       name: file.name,
       updatedAt: file.updatedAt,
-      file,
+      meta: [this.ownerLabel(file.ownerEmail, file.ownerId), formatBytes(file.size)]
+        .filter(Boolean)
+        .join(' · '),
+      tag: file.mimeType || '—',
+      data: file,
     })),
   ]);
+
+  private ownerLabel(email?: string | null, ownerId?: string): string | undefined {
+    if (email) {
+      return this.isOwner(ownerId ?? '') ? `${email} (propietario)` : email;
+    }
+    if (ownerId && this.isOwner(ownerId)) {
+      return 'propietario';
+    }
+    return undefined;
+  }
 
   protected readonly showCreate = signal(false);
   protected readonly newName = signal('');
@@ -111,17 +120,8 @@ export class Drive implements OnInit {
   protected readonly replaceError = signal<string | null>(null);
   protected readonly replacing = signal(false);
 
-  protected readonly shareTarget = signal<DriveItem | null>(null);
-  protected readonly showShare = signal(false);
-  protected readonly shareEmail = signal('');
-  protected readonly sharePermission = signal<'read' | 'edit'>('read');
-  protected readonly shareError = signal<string | null>(null);
-  protected readonly sharing = signal(false);
-
-  protected readonly permissionOptions = [
-    { label: 'Lectura', value: 'read' },
-    { label: 'Edición', value: 'edit' },
-  ];
+  protected readonly permTarget = signal<{ kind: 'file' | 'folder'; id: string; name: string } | null>(null);
+  protected readonly showPermissions = signal(false);
 
   protected readonly breadcrumb = computed<MenuItem[]>(() =>
     this.crumbs().map((folder, index, chain) =>
@@ -133,8 +133,8 @@ export class Drive implements OnInit {
 
   constructor(
     private foldersApi: FolderService,
-    private shares: ShareService,
-    private users: UserService,
+    private folderTree: FolderTreeService,
+    private auth: AuthService,
     private route: ActivatedRoute,
     private router: Router,
     private confirm: ConfirmationService,
@@ -257,25 +257,12 @@ export class Drive implements OnInit {
     this.destinationId.set('');
     this.moveError.set(null);
     this.showMove.set(true);
-    this.destinations.set(await this.flatTree(folder.id, this.currentId()));
-  }
-
-  private async flatTree(excludedId: string, parentId: string | null): Promise<{ label: string; value: string }[]> {
-    const options: { label: string; value: string }[] = [];
-    const walk = async (currentId: string | null, prefix: string): Promise<void> => {
-      const page = await firstValueFrom(this.foldersApi.children(currentId));
-      for (const folder of page.folders) {
-        if (folder.id === excludedId) {
-          continue;
-        }
-        if (folder.id !== parentId) {
-          options.push({ label: `${prefix}${folder.name}`, value: folder.id });
-        }
-        await walk(folder.id, `${prefix}${folder.name} / `);
-      }
-    };
-    await walk(null, '');
-    return options;
+    this.destinations.set(
+      await this.folderTree.options({
+        skipIds: [folder.id],
+        hideIds: this.currentId() ? [this.currentId() as string] : [],
+      }),
+    );
   }
 
   protected saveMove(): void {
@@ -320,9 +307,43 @@ export class Drive implements OnInit {
       next: () => {
         this.reload();
       },
-      error: (err: { status?: number }) => {
+      error: (err: { status?: number; error?: { message?: string } }) => {
+        if (err?.status === 400) {
+          this.error.set(
+            err?.error?.message || 'No se puede enviar la carpeta a la papelera porque contiene archivos de otros usuarios.'
+          );
+          return;
+        }
+        if (err?.status === 403) {
+          this.error.set('Solo el propietario puede enviar la carpeta a la papelera.');
+          return;
+        }
+        this.error.set('No se pudo enviar la carpeta a la papelera.');
+      },
+    });
+  }
+
+  protected confirmTrashFile(file: DriveFile): void {
+    this.confirm.confirm({
+      header: 'Enviar a la papelera',
+      message: `¿Enviar "${file.name}" a la papelera?`,
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: 'Enviar',
+      rejectLabel: 'Cancelar',
+      accept: () => this.trashFile(file),
+    });
+  }
+
+  private trashFile(file: DriveFile): void {
+    this.foldersApi.trashFile(file.id).subscribe({
+      next: () => {
+        this.reload();
+      },
+      error: (err: { status?: number; error?: { message?: string } }) => {
         this.error.set(
-          err?.status === 400 ? 'No se puede eliminar: revisa el contenido.' : 'No se pudo eliminar la carpeta.'
+          err?.status === 403
+            ? err?.error?.message || 'Solo puedes enviar a la papelera tus propios archivos.'
+            : err?.error?.message || 'No se pudo enviar el archivo a la papelera.'
         );
       },
     });
@@ -331,18 +352,80 @@ export class Drive implements OnInit {
   @ViewChild('itemMenu') private readonly itemMenu?: Menu;
   protected readonly menuItems = signal<MenuItem[]>([]);
 
-  protected activateItem(item: DriveItem): void {
+  protected readonly rowActions = (item: DriveViewItem): DriveViewAction[] => {
+    if (item.kind === 'folder') {
+      const folder = item.data as DriveFolder;
+      const actions: DriveViewAction[] = [
+        { id: 'rename', icon: 'pi pi-pencil', label: 'Renombrar carpeta', severity: 'secondary' },
+        { id: 'move', icon: 'pi pi-send', label: 'Mover carpeta', severity: 'secondary' },
+      ];
+      if (this.isOwner(folder.ownerId) && !folder.isRoot) {
+        actions.push({ id: 'permissions', icon: 'pi pi-users', label: 'Administrar permisos', severity: 'secondary' });
+        actions.push({ id: 'trash', icon: 'pi pi-trash', label: 'Enviar a la papelera', severity: 'danger' });
+      }
+      return actions;
+    }
+    const file = item.data as DriveFile;
+    const actions: DriveViewAction[] = [
+      { id: 'rename', icon: 'pi pi-pencil', label: 'Renombrar archivo', severity: 'secondary' },
+      { id: 'move', icon: 'pi pi-send', label: 'Mover archivo', severity: 'secondary' },
+      { id: 'replace', icon: 'pi pi-file-edit', label: 'Reemplazar contenido', severity: 'secondary' },
+      { id: 'download', icon: 'pi pi-download', label: 'Descargar archivo', severity: 'secondary' },
+    ];
+    if (this.isOwner(file.ownerId)) {
+      actions.push({ id: 'permissions', icon: 'pi pi-users', label: 'Administrar permisos', severity: 'secondary' });
+      actions.push({ id: 'trash', icon: 'pi pi-trash', label: 'Enviar a la papelera', severity: 'danger' });
+    }
+    return actions;
+  };
+
+  protected activateItem(item: DriveViewItem): void {
     if (item.kind === 'folder') {
       this.openFolder(item.id);
-    } else {
+      return;
+    }
+    this.downloadFile(item);
+  }
+
+  protected onViewAction(event: { item: DriveViewItem; actionId: string }): void {
+    const { item, actionId } = event;
+    if (item.kind === 'folder') {
+      const folder = item.data as DriveFolder;
+      if (actionId === 'rename') {
+        this.openRename(folder);
+      } else if (actionId === 'move') {
+        this.openMove(folder);
+      } else if (actionId === 'trash') {
+        this.confirmTrash(folder);
+      } else if (actionId === 'permissions') {
+        this.openPermissions('folder', folder.id, folder.name);
+      }
+      return;
+    }
+    const file = item.data as DriveFile;
+    if (actionId === 'rename') {
+      this.openRenameFile(file);
+    } else if (actionId === 'move') {
+      this.openMoveFile(file);
+    } else if (actionId === 'replace') {
+      this.openReplace(file);
+    } else if (actionId === 'download') {
       this.downloadFile(item);
+    } else if (actionId === 'trash') {
+      this.confirmTrashFile(file);
+    } else if (actionId === 'permissions') {
+      this.openPermissions('file', file.id, file.name);
     }
   }
 
-  protected openItemMenu(event: MouseEvent, item: DriveItem): void {
+  protected openItemMenu(event: MouseEvent, item: DriveViewItem): void {
     event.stopPropagation();
-    this.menuItems.set(item.kind === 'folder' ? this.folderMenu(item.folder) : this.fileMenu(item.file));
+    this.menuItems.set(item.kind === 'folder' ? this.folderMenu(item.data as DriveFolder) : this.fileMenu(item.data as DriveFile));
     this.itemMenu?.toggle(event);
+  }
+
+  private isOwner(ownerId: string): boolean {
+    return this.auth.currentUser()?.id === ownerId;
   }
 
   private folderMenu(folder: DriveFolder): MenuItem[] {
@@ -351,8 +434,14 @@ export class Drive implements OnInit {
       { label: 'Renombrar', icon: 'pi pi-pencil', command: () => this.openRename(folder) },
       { label: 'Mover', icon: 'pi pi-send', command: () => this.openMove(folder) },
     ];
-    if (!folder.isRoot) {
-      items.push({ label: 'Compartir', icon: 'pi pi-share-alt', command: () => this.openShare({ kind: 'folder', id: folder.id, name: folder.name, updatedAt: folder.updatedAt, folder }) });
+    if (this.isOwner(folder.ownerId) && !folder.isRoot) {
+      items.push({
+        label: 'Administrar permisos',
+        icon: 'pi pi-users',
+        command: () => this.openPermissions('folder', folder.id, folder.name),
+      });
+    }
+    if (this.isOwner(folder.ownerId) && !folder.isRoot) {
       items.push({
         label: 'Enviar a la papelera',
         icon: 'pi pi-trash',
@@ -364,17 +453,35 @@ export class Drive implements OnInit {
   }
 
   private fileMenu(file: DriveFile): MenuItem[] {
-    return [
+    const items: MenuItem[] = [
       { label: 'Descargar', icon: 'pi pi-download', command: () => this.downloadById(file) },
       { label: 'Renombrar', icon: 'pi pi-pencil', command: () => this.openRenameFile(file) },
       { label: 'Mover', icon: 'pi pi-send', command: () => this.openMoveFile(file) },
       { label: 'Reemplazar contenido', icon: 'pi pi-file-edit', command: () => this.openReplace(file) },
-      { label: 'Compartir', icon: 'pi pi-share-alt', command: () => this.openShare({ kind: 'file', id: file.id, name: file.name, updatedAt: file.updatedAt, file }) },
     ];
+    if (this.isOwner(file.ownerId)) {
+      items.push({
+        label: 'Administrar permisos',
+        icon: 'pi pi-users',
+        command: () => this.openPermissions('file', file.id, file.name),
+      });
+      items.push({
+        label: 'Enviar a la papelera',
+        icon: 'pi pi-trash',
+        styleClass: 'menu-danger',
+        command: () => this.confirmTrashFile(file),
+      });
+    }
+    return items;
   }
 
   private downloadById(file: DriveFile): void {
-    this.downloadFile({ kind: 'file', id: file.id, name: file.name, updatedAt: file.updatedAt, file });
+    this.downloadFile({ id: file.id, kind: 'file', name: file.name, data: file });
+  }
+
+  protected openPermissions(kind: 'file' | 'folder', id: string, name: string): void {
+    this.permTarget.set({ kind, id, name });
+    this.showPermissions.set(true);
   }
 
   protected formatBytes = formatBytes;
@@ -421,11 +528,11 @@ export class Drive implements OnInit {
     });
   }
 
-  protected downloadFile(item: DriveItem): void {
+  protected downloadFile(item: DriveViewItem): void {
     if (item.kind !== 'file') {
       return;
     }
-    const file = item.file;
+    const file = item.data as DriveFile;
     this.downloadingId.set(file.id);
     this.foldersApi.downloadFile(file.id).subscribe({
       next: (blob) => {
@@ -484,7 +591,7 @@ export class Drive implements OnInit {
     this.destinationId.set('');
     this.moveError.set(null);
     this.showMoveFile.set(true);
-    this.destinations.set(await this.flatTree('', null));
+    this.destinations.set(await this.folderTree.options());
   }
 
   protected saveMoveFile(): void {
@@ -505,61 +612,6 @@ export class Drive implements OnInit {
       error: () => {
         this.moveError.set('No se pudo mover el archivo.');
         this.moving.set(false);
-      },
-    });
-  }
-
-  protected openShare(item: DriveItem): void {
-    this.shareTarget.set(item);
-    this.shareEmail.set('');
-    this.sharePermission.set('read');
-    this.shareError.set(null);
-    this.showShare.set(true);
-  }
-
-  protected saveShare(): void {
-    const target = this.shareTarget();
-    const email = this.shareEmail().trim();
-    if (!target) {
-      return;
-    }
-    if (!isValidEmail(email)) {
-      this.shareError.set('Ingresa un email válido.');
-      return;
-    }
-    this.sharing.set(true);
-    this.shareError.set(null);
-    this.users.resolveByEmail(email).subscribe({
-      next: (resolved) => {
-        this.shares
-          .share({
-            resourceType: target.kind,
-            resourceId: target.id,
-            sharedWithId: resolved.id,
-            permission: this.sharePermission(),
-          })
-          .subscribe({
-            next: () => {
-              this.sharing.set(false);
-              this.showShare.set(false);
-            },
-            error: (err: { status?: number }) => {
-              this.shareError.set(
-                err?.status === 403
-                  ? 'Solo el propietario puede compartir.'
-                  : err?.status === 409
-                    ? 'Ya compartido con ese usuario.'
-                    : err?.status === 404
-                      ? 'Recurso no encontrado.'
-                      : 'No se pudo compartir.'
-              );
-              this.sharing.set(false);
-            },
-          });
-      },
-      error: (err: { status?: number }) => {
-        this.shareError.set(err?.status === 404 ? 'Ese email no está registrado.' : 'No se pudo resolver el usuario.');
-        this.sharing.set(false);
       },
     });
   }

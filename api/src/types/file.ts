@@ -21,6 +21,8 @@ export interface File {
 
 export interface PublicFile {
   id: string;
+  ownerId: string;
+  ownerEmail?: string | null;
   name: string;
   mimeType: string;
   category: FileCategory;

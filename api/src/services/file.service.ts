@@ -21,9 +21,39 @@ import {
 import path from 'path';
 import { PermissionService, RequiredPermission } from './permission.service';
 
-function toPublicFile(file: HydratedDocument<File>): PublicFile {
+const ownerEmailCache = new Map<string, string | null>();
+
+async function ownerEmailMap(ids: Array<unknown>): Promise<Map<string, string | null>> {
+  const objectIds = ids.filter((id): id is Types.ObjectId => id instanceof mongoose.Types.ObjectId);
+  const strings = ids
+    .filter((id): id is string => typeof id === 'string' && mongoose.Types.ObjectId.isValid(id))
+    .map((id) => new mongoose.Types.ObjectId(id));
+  const all = [...new Set([...objectIds, ...strings].map((id) => id.toString()))];
+  const map = new Map<string, string | null>();
+  const missing = all.filter((id) => !ownerEmailCache.has(id));
+  if (missing.length > 0) {
+    const users = await UserModel.find({ _id: { $in: missing.map((id) => new mongoose.Types.ObjectId(id)) } }, { email: 1 }).lean();
+    for (const user of users) {
+      ownerEmailCache.set(user._id.toString(), user.email ?? null);
+    }
+    for (const id of missing) {
+      if (!ownerEmailCache.has(id)) {
+        ownerEmailCache.set(id, null);
+      }
+    }
+  }
+  for (const id of all) {
+    map.set(id, ownerEmailCache.get(id) ?? null);
+  }
+  return map;
+}
+
+export function toPublicFile(file: HydratedDocument<File>, ownerEmails?: Map<string, string | null>): PublicFile {
+  const ownerId = file.ownerId.toString();
   return {
     id: file._id.toString(),
+    ownerId,
+    ownerEmail: ownerEmails?.get(ownerId) ?? ownerEmailCache.get(ownerId) ?? null,
     name: file.name,
     mimeType: file.mimeType,
     category: file.category,
@@ -348,6 +378,40 @@ export class FileService {
       affectedUserIds: [],
     });
     return toPublicFile(file);
+  }
+
+  async trashFile(userId: string, id: string): Promise<{ deletionId: string }> {
+    const file = await this.ownedFile(userId, id);
+    const deletionId = new mongoose.Types.ObjectId();
+    const deletedAt = new Date();
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await FileModel.updateOne(
+          { _id: file._id },
+          { $set: { isDeleted: true, deletedAt, deletionId, isDeletionRoot: true } },
+          { session }
+        );
+        await ActivityLogModel.create(
+          [
+            {
+              userId: new mongoose.Types.ObjectId(userId),
+              action: 'TRASH',
+              status: 'success',
+              resourceType: 'file',
+              resourceId: file._id,
+              resourceSnapshot: { name: file.name },
+              details: { deletionId, isDeletionRoot: true },
+              affectedUserIds: [],
+            },
+          ],
+          { session, ordered: true }
+        );
+      });
+    } finally {
+      await session.endSession();
+    }
+    return { deletionId: deletionId.toString() };
   }
 
   private async ownedFile(userId: string, id: string): Promise<HydratedDocument<File>> {

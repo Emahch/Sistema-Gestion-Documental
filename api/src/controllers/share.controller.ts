@@ -33,6 +33,19 @@ export class ShareController {
     }
   };
 
+  forResource = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const shares = await this.shareService.listForResource(
+        userId(req),
+        req.query.resourceType,
+        req.query.resourceId
+      );
+      res.json(shares);
+    } catch (err) {
+      next(err);
+    }
+  };
+
   withMe = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const result = await this.shareService.sharedWithMe(userId(req), req.query.page, req.query.limit);

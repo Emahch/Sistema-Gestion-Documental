@@ -1,0 +1,86 @@
+<p-dialog
+  header="Administrar permisos"
+  [visible]="visible()"
+  (visibleChange)="visible.set($event)"
+  [modal]="true"
+  [style]="{ width: '34rem' }"
+>
+  <div class="perm-body">
+    <p class="perm-target">
+      Permisos de <strong>{{ resourceName() }}</strong>
+    </p>
+
+    @if (error()) {
+      <p class="form-error">{{ error() }}</p>
+    }
+
+    @if (loading()) {
+      <p class="perm-hint">Cargando permisos...</p>
+    } @else if (shares().length === 0) {
+      <p class="perm-hint">Este recurso todavía no está compartido con nadie.</p>
+    } @else {
+      <ul class="perm-list">
+        @for (share of shares(); track share.id) {
+          <li class="perm-row">
+            <span class="perm-email">{{ share.sharedWithEmail }}</span>
+            <p-tag [value]="share.permission === 'edit' ? 'Edición' : 'Lectura'" [severity]="share.permission === 'edit' ? 'warn' : 'info'" />
+            <p-select
+              [options]="permissionOptions"
+              [ngModel]="share.permission"
+              (ngModelChange)="changePermission(share, $event)"
+              optionLabel="label"
+              optionValue="value"
+              [disabled]="busyUserId() === share.sharedWithId"
+              appendTo="body"
+              styleClass="perm-select"
+            />
+            <p-button
+              icon="pi pi-user-minus"
+              [text]="true"
+              [rounded]="true"
+              severity="danger"
+              ariaLabel="Quitar acceso"
+              [loading]="busyUserId() === share.sharedWithId"
+              (onClick)="removeAccess(share)"
+            />
+          </li>
+        }
+      </ul>
+    }
+
+    <div class="perm-add">
+      <label for="perm-email">Compartir con (email)</label>
+      <p-autocomplete
+        inputId="perm-email"
+        type="email"
+        autocomplete="email"
+        [ngModel]="email()"
+        (ngModelChange)="email.set($event)"
+        [suggestions]="suggestions()"
+        (completeMethod)="search($event)"
+        [minQueryLength]="2"
+        [showClear]="true"
+        placeholder="usuario@example.com"
+        appendTo="body"
+        styleClass="w-full"
+        inputStyleClass="w-full"
+      />
+      @if (searching()) {
+        <small class="perm-hint">Buscando usuarios...</small>
+      }
+      <p-select
+        [options]="permissionOptions"
+        [ngModel]="permission()"
+        (ngModelChange)="permission.set($event)"
+        optionLabel="label"
+        optionValue="value"
+        appendTo="body"
+        styleClass="w-full"
+      />
+      <p-button label="Compartir" icon="pi pi-share-alt" [loading]="saving()" (onClick)="addUser()" />
+    </div>
+  </div>
+  <ng-template #footer>
+    <p-button label="Cerrar" severity="secondary" (onClick)="visible.set(false)" />
+  </ng-template>
+</p-dialog>

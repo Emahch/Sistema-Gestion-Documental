@@ -37,6 +37,7 @@ Esquema e índices en vivo: [erd.md](./erd.md) (generado con `npm run db:diagram
 - Nadie puede desactivarse ni quitarse el rol a sí mismo -> 400.
 - `PATCH /api/users/me` (perfil propio: email/password) y `PATCH /api/users/:id` (admin: email/rol/password).
 - Reconciliación de cuota solo lectura: compara `usedBytes` con la suma real.
+- `GET /api/users/search?q=` autocompleta el email al compartir: exige 2 caracteres, devuelve hasta 10 usuarios activos (solo id y email) y excluye al usuario autenticado.
 - Sesión del frontend en `localStorage`; el interceptor cierra sesión solo ante 401 que no sea del login.
 
 ### Archivos
@@ -50,6 +51,31 @@ Esquema e índices en vivo: [erd.md](./erd.md) (generado con `npm run db:diagram
 
 ### Carpetas y explorador
 
-- Vista unificada carpetas+archivos con DataView lista/cuadrícula.
-- Mover excluye en UI la carpeta, su subárbol y su carpeta padre como destino; el backend igual valida ciclos (defensa en dos capas).
+- Vista unificada carpetas+archivos con DataView lista/cuadrícula. El marcado vive en el componente reutilizable `app-drive-view` (lo usan el explorador, "Compartidos por mí", "Compartidos conmigo" y la papelera).
+- Mover excluye en UI la carpeta, su subárbol y su carpeta padre como destino; el backend igual valida ciclos.
 - Papelera de carpetas: `DELETE /api/folders/:id` marca `isDeleted` + `deletionId` compartido a todo el subárbol (`isDeletionRoot` solo en lo pedido directamente), un log TRASH por recurso, sin liberar cuota; bloquea la raíz y subárboles con archivos ajenos.
+
+### Papelera
+
+- `GET /api/trash` lista solo las raíces de eliminación del usuario (carpetas o archivos) con el grupo agrupado: `itemCount` (carpetas + archivos), `sizeBytes` y la carpeta de origen. Orden por fecha de eliminación.
+- `GET /api/trash/:id/contents` permite navegar dentro de una carpeta eliminada (de cualquier nivel, no solo la raíz): devuelve subcarpetas y archivos directos con `sizeBytes` e `itemCount` del subárbol de cada uno. Solo el propietario.
+- `DELETE /api/files/:id` envía un archivo suelto a la papelera (solo su propietario); la cuota no se libera al tirar ni al restaurar.
+- `PATCH /api/trash/:id/restore` restaura el grupo completo (carpeta con subárbol y archivos, o archivo suelto). Body opcional `{ destinationId }`: sin destino vuelve a su ubicación original; si el padre ya no existe o está eliminado -> 400 y la UI pide elegir carpeta.
+- `PATCH /api/trash/:id/restore-item` restaura un archivo o una subcarpeta concreta de un grupo eliminado. `destinationId` es obligatorio (400 si falta); si el ítem es una carpeta, se restaura su subárbol completo.
+- Restaurar con destino recalcula `ancestors` de la carpeta y de sus descendientes y exige destino existente, no eliminado, del mismo propietario y con permiso `edit`.
+- Antes de restaurar se valida que el nombre no esté ocupado en el destino -> 409; id inválido -> 400, ausente de la papelera -> 404, ajeno -> 403. Cada recurso restaurado genera un log `RESTORE` con `{ deletionId, previousFolderId, destinationFolderId }`.
+- La UI de papelera permite entrar en una carpeta eliminada, volver con la miga de pan y restaurar ítems sueltos eligiendo destino con un `p-select` alimentado por `FolderTreeService` (árbol de carpetas propias, sin la papelera).
+- `FolderTreeService.options({ includeRoot, skipIds, hideIds })` centraliza el árbol de destinos: `skipIds` no lista ni recorre, `hideIds` no lista pero sí recorre; lo usan mover carpeta/archivo y restaurar.
+- `DELETE /api/trash/:id` elimina definitivamente el grupo completo (`deletionId`), solo el propietario. En una transacción borra metadata de carpetas y archivos, elimina sus shares y libera la cuota de cada `file.ownerId`; después del commit borra el contenido GridFS. Los logs se conservan.
+- Cada recurso borrado genera un log `DELETE_PERMANENT`: las carpetas con `details { deletionId }` y los archivos con `{ deletionId, gridFsId, size }`. Si falla el borrado en GridFS se registra otro log con `status:"error"` y `errorCode:"GRIDFS_DELETE_FAILED"`.
+- El borrado definitivo es por grupo; en la UI solo se ofrece sobre las raíces de la papelera (con confirmación), no sobre ítems sueltos dentro de una carpeta eliminada.
+- Los permisos no se tocan al tirar ni al restaurar; el recurso conserva sus compartidos hasta el borrado definitivo, que elimina los shares.
+
+### Compartidos (shares)
+
+- `shares` es la fuente de verdad del acceso. El permiso efectivo se calcula en `permission.service.ts`: dueño > share directo > heredado por `ancestors`; el admin no tiene acceso por rol.
+- El destinatario se identifica por `sharedWithId` (el email es mutable y no sirve como clave).
+- Compartir, cambiar permiso y retirar son exclusivos del propietario; la carpeta raíz no se comparte.
+- `GET /api/shares/resource?resourceType&resourceId` lista los permisos directos de un recurso (solo el propietario) y alimenta el diálogo de permisos.
+- En el frontend "Compartir" se fusionó en "Administrar permisos": un solo diálogo lista permisos, añade usuarios, cambia lectura/edición y retira acceso.
+- "Compartidos por mí" agrupa por recurso (una tarjeta por carpeta/archivo con sus compartidos) y reutiliza la vista del explorador; "Compartidos conmigo" usa la misma vista, una entrada por recurso compartido (propietario y permiso en el subtítulo) y sin la opción de permisos porque el receptor no es el dueño.

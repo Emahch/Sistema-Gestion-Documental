@@ -210,6 +210,40 @@ router.get('/by-email', auth, controller.findByEmail);
 
 /**
  * @openapi
+ * /api/users/search:
+ *   get:
+ *     summary: Busca usuarios por email para autocompletar al compartir
+ *     description: Devuelve como máximo 10 usuarios activos cuyo email contiene el texto; excluye al usuario autenticado
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: q
+ *         required: true
+ *         schema: { type: string }
+ *         description: Texto a buscar (mínimo 2 caracteres)
+ *     responses:
+ *       200:
+ *         description: Usuarios encontrados (solo id y email)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id: { type: string }
+ *                   email: { type: string }
+ *       401:
+ *         description: Sin token o inactivo
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ */
+router.get('/search', auth, controller.search);
+
+/**
+ * @openapi
  * /api/users/{id}/status:
  *   patch:
  *     summary: Activa o desactiva un usuario (solo admin)

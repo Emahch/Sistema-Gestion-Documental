@@ -42,6 +42,19 @@ export class UserController {
     }
   };
 
+  search = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user) {
+        throw new UnauthorizedError('Token requerido');
+      }
+      const query = typeof req.query.q === 'string' ? req.query.q : '';
+      const users = await this.userService.searchUsers(query, req.user.id);
+      res.json(users);
+    } catch (err) {
+      next(err);
+    }
+  };
+
   setStatus = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const user = await this.userService.setActiveStatus(routeParam(req), req.body.isActive, req.user?.id ?? null);

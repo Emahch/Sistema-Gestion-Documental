@@ -22,3 +22,12 @@ app-root {
   display: block;
   min-height: 100dvh;
 }
+
+.menu-danger {
+  color: var(--p-red-500);
+}
+
+p-autocomplete.w-full,
+p-autocomplete.w-full .p-autocomplete-input {
+  width: 100%;
+}

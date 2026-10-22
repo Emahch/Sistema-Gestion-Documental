@@ -12,6 +12,8 @@ export interface ShareItem {
   createdAt: string;
 }
 
+export type SharePermission = 'read' | 'edit';
+
 export interface PagedShares {
   data: ShareItem[];
   total: number;
@@ -23,5 +25,5 @@ export interface ShareRequest {
   resourceType: 'file' | 'folder';
   resourceId: string;
   sharedWithId: string;
-  permission: 'read' | 'edit';
+  permission: SharePermission;
 }

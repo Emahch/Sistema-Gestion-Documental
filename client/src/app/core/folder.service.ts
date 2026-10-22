@@ -74,6 +74,10 @@ export class FolderService {
     return this.http.patch<DriveFile>(`${this.baseUrl}/files/${id}/move`, { destinationId });
   }
 
+  trashFile(id: string): Observable<{ deletionId: string }> {
+    return this.http.delete<{ deletionId: string }>(`${this.baseUrl}/files/${id}`);
+  }
+
   editContent(id: string, file: File): Observable<HttpEvent<DriveFile>> {
     const form = new FormData();
     form.append('file', file, file.name);

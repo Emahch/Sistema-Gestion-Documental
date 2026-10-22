@@ -239,6 +239,49 @@ export class ShareService {
     });
   }
 
+  async listForResource(
+    userId: string,
+    resourceType: unknown,
+    resourceId: unknown
+  ): Promise<PublicShare[]> {
+    if (resourceType !== 'file' && resourceType !== 'folder') {
+      throw new BadRequestError('resourceType debe ser file o folder');
+    }
+    if (typeof resourceId !== 'string' || !resourceId) {
+      throw new BadRequestError('resourceId es obligatorio');
+    }
+    const resourceObjectId = toObjectId(resourceId, 'resourceId');
+    const found = await this.permissions.findResource(resourceType, resourceObjectId.toString());
+    if (!found) {
+      throw new NotFoundError('Recurso no encontrado');
+    }
+    const { doc } = found;
+    if (doc.isDeleted) {
+      throw new BadRequestError('El recurso está eliminado');
+    }
+    if (doc.ownerId.toString() !== userId) {
+      throw new ForbiddenError('Solo el propietario administra permisos');
+    }
+    const shares = await ShareModel.find({ resourceId: resourceObjectId });
+    if (shares.length === 0) {
+      return [];
+    }
+    const targetIds = [...new Set(shares.map((share) => share.sharedWithId.toString()))];
+    const [owner, targets] = await Promise.all([
+      UserModel.findById(doc.ownerId),
+      UserModel.find({ _id: { $in: targetIds } }),
+    ]);
+    const emails = new Map(targets.map((user) => [user._id.toString(), user.email]));
+    return shares.map((share) =>
+      toPublicShare(
+        share,
+        doc.name,
+        owner?.email ?? '',
+        emails.get(share.sharedWithId.toString()) ?? ''
+      )
+    );
+  }
+
   async sharedWithMe(
     userId: string,
     pageRaw: unknown,

@@ -56,4 +56,10 @@ export class UserService {
       params: { email },
     });
   }
+
+  searchUsers(query: string): Observable<{ id: string; email: string }[]> {
+    return this.http.get<{ id: string; email: string }[]>(`${this.baseUrl}/users/search`, {
+      params: { q: query },
+    });
+  }
 }

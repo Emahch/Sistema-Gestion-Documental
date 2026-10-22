@@ -4,6 +4,7 @@ import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
+import { ConfirmationService } from 'primeng/api';
 import { Shared } from './shared';
 
 describe('Shared', () => {
@@ -14,6 +15,7 @@ describe('Shared', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideRouter([]),
+        ConfirmationService,
         {
           provide: ActivatedRoute,
           useValue: { data: of({ mode: 'with-me' }), queryParamMap: of(convertToParamMap({})) },

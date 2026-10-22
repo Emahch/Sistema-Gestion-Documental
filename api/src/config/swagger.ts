@@ -21,6 +21,18 @@ const options = {
             message: { type: 'string', example: 'Error en la solicitud' },
           },
         },
+        TrashContentItem: {
+          type: 'object',
+          required: ['id', 'resourceType', 'name', 'deletedAt', 'sizeBytes', 'itemCount'],
+          properties: {
+            id: { type: 'string' },
+            resourceType: { type: 'string', enum: ['folder', 'file'] },
+            name: { type: 'string' },
+            deletedAt: { type: 'string', format: 'date-time' },
+            sizeBytes: { type: 'integer', description: 'Tamaño de los archivos que contiene' },
+            itemCount: { type: 'integer', description: 'Carpetas y archivos que contiene' },
+          },
+        },
       },
     },
   },

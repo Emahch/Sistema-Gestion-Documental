@@ -1,0 +1,97 @@
+<p-dataview [value]="items()" [layout]="layout()" [loading]="loading()">
+  <ng-template #list let-rows>
+    <div class="list-rows">
+      @for (item of rows; track item.id) {
+        <div
+          class="list-row"
+          role="button"
+          tabindex="0"
+          (click)="activate.emit(item)"
+          (keydown.enter)="activate.emit(item)"
+          (keydown.space)="activate.emit(item)"
+        >
+          <span class="row-open">
+            <i class="pi row-icon" [class.pi-folder]="item.kind === 'folder'" [class.pi-file]="item.kind !== 'folder'" [class.folder]="item.kind === 'folder'"></i>
+            <span class="row-name">{{ item.name }}</span>
+          </span>
+          @if (item.tag) {
+            <p-tag [value]="item.tag" severity="info" />
+          }
+          <span class="row-meta">
+            @if (item.meta) {
+              {{ item.meta }}
+            }
+            @if (item.meta && item.updatedAt) {
+              ·
+            }
+            @if (item.updatedAt) {
+              {{ item.updatedAt | date: 'medium' }}
+            }
+          </span>
+          <div class="row-actions" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+            @for (option of actions()(item); track option.id) {
+              <p-button
+                [icon]="option.icon"
+                [text]="true"
+                [rounded]="true"
+                [severity]="option.severity ?? 'secondary'"
+                [ariaLabel]="option.label"
+                (onClick)="action.emit({ item, actionId: option.id })"
+              />
+            }
+            @if (item.showMenu !== false) {
+              <p-button
+                icon="pi pi-ellipsis-v"
+                [text]="true"
+                [rounded]="true"
+                severity="secondary"
+                ariaLabel="Opciones"
+                (onClick)="menu.emit({ event: $event, item })"
+              />
+            }
+          </div>
+        </div>
+      }
+    </div>
+  </ng-template>
+  <ng-template #grid let-rows>
+    <div class="grid-cards">
+      @for (item of rows; track item.id) {
+        <div
+          class="grid-card"
+          role="button"
+          tabindex="0"
+          (click)="activate.emit(item)"
+          (keydown.enter)="activate.emit(item)"
+          (keydown.space)="activate.emit(item)"
+        >
+          <span class="grid-open">
+            <i class="pi grid-icon" [class.pi-folder]="item.kind === 'folder'" [class.pi-file]="item.kind !== 'folder'" [class.file]="item.kind !== 'folder'"></i>
+            <span class="grid-name">{{ item.name }}</span>
+          </span>
+          @if (item.tag) {
+            <p-tag [value]="item.tag" severity="info" />
+          }
+          @if (item.meta) {
+            <small class="grid-meta">{{ item.meta }}</small>
+          }
+          @if (item.showMenu !== false) {
+            <span class="card-menu-wrap" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+              <p-button
+                icon="pi pi-ellipsis-v"
+                [text]="true"
+                [rounded]="true"
+                severity="secondary"
+                ariaLabel="Opciones"
+                (onClick)="menu.emit({ event: $event, item })"
+              />
+            </span>
+          }
+        </div>
+      }
+    </div>
+  </ng-template>
+  <ng-template #emptymessage>
+    <p class="empty">{{ emptyText() }}</p>
+  </ng-template>
+</p-dataview>

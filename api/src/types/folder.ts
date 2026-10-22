@@ -19,6 +19,8 @@ export interface Folder {
 export interface PublicFolder {
   id: string;
   ownerId: string;
+  ownerEmail?: string | null;
+  createdBy?: string | null;
   parentId: string | null;
   isRoot: boolean;
   name: string;

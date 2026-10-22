@@ -67,6 +67,15 @@ export class FileController {
       next(err);
     }
   };
+
+  trash = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const result = await this.fileService.trashFile(userId(req), routeParam(req));
+      res.status(200).json(result);
+    } catch (err) {
+      next(err);
+    }
+  };
 }
 
 function userId(req: AuthRequest): string {

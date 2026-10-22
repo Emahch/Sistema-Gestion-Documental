@@ -171,6 +171,53 @@ router.delete('/', auth, controller.remove);
 
 /**
  * @openapi
+ * /api/shares/resource:
+ *   get:
+ *     summary: Lista los permisos directos de un recurso (solo el propietario)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: resourceType
+ *         required: true
+ *         schema: { type: string, enum: [file, folder] }
+ *       - in: query
+ *         name: resourceId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Permisos del recurso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items: { $ref: '#/components/schemas/Share' }
+ *       400:
+ *         description: Datos inválidos o recurso eliminado
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ *       401:
+ *         description: Sin token o inactivo
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ *       403:
+ *         description: Solo el propietario administra permisos
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ *       404:
+ *         description: Recurso no encontrado
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ */
+router.get('/resource', auth, controller.forResource);
+
+/**
+ * @openapi
  * /api/shares/with-me:
  *   get:
  *     summary: Recursos compartidos conmigo

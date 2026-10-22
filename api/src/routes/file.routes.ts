@@ -314,4 +314,44 @@ router.patch('/:id', auth, controller.rename);
  */
 router.patch('/:id/move', auth, controller.move);
 
+/**
+ * @openapi
+ * /api/files/{id}:
+ *   delete:
+ *     summary: Envía un archivo a la papelera
+ *     description: Marca el archivo como eliminado; se puede restaurar desde /api/trash
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Archivo enviado a la papelera
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 deletionId: { type: string }
+ *       401:
+ *         description: Sin token o inactivo
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ *       403:
+ *         description: Solo el propietario del archivo puede enviarlo a la papelera
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ *       404:
+ *         description: Archivo no encontrado
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ */
+router.delete('/:id', auth, controller.trash);
+
 export default router;

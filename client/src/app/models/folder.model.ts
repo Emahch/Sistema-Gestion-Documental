@@ -1,6 +1,8 @@
 export interface DriveFolder {
   id: string;
   ownerId: string;
+  ownerEmail?: string | null;
+  createdBy?: string | null;
   parentId: string | null;
   isRoot: boolean;
   name: string;
@@ -11,6 +13,8 @@ export interface DriveFolder {
 
 export interface DriveFile {
   id: string;
+  ownerId: string;
+  ownerEmail?: string | null;
   name: string;
   mimeType: string;
   category: string;

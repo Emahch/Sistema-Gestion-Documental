@@ -31,6 +31,9 @@
         <a routerLink="/shared-by-me" routerLinkActive="active-item" class="side-link">
           <i class="pi pi-share-alt"></i><span class="side-label">Compartidos por mí</span>
         </a>
+        <a routerLink="/trash" routerLinkActive="active-item" class="side-link">
+          <i class="pi pi-trash"></i><span class="side-label">Papelera</span>
+        </a>
         @if (auth.isAdmin()) {
           <a routerLink="/users" routerLinkActive="active-item" class="side-link">
             <i class="pi pi-users"></i><span class="side-label">Usuarios</span>

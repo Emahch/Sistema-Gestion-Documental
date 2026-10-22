@@ -8,6 +8,8 @@ import type { Folder, PublicFolder } from '../types/folder';
 import type { PublicFile } from '../types/file';
 import { BadRequestError, ConflictError, ForbiddenError, HttpError, NotFoundError } from '../errors/http-error';
 import { PermissionService } from './permission.service';
+import { toPublicFile } from './file.service';
+import { UserModel } from '../models/user.model';
 
 export interface FolderChildren {
   folders: PublicFolder[];
@@ -23,10 +25,43 @@ function toPage(value: unknown, fallback: number): number {
   return Number.isNaN(parsed) || parsed < 1 ? fallback : Math.min(parsed, 100);
 }
 
-function toPublicFolder(folder: HydratedDocument<Folder>): PublicFolder {
+const ownerEmailCache = new Map<string, string | null>();
+
+async function ownerEmailMap(ids: Array<unknown>): Promise<Map<string, string | null>> {
+  const objectIds = ids.filter((id): id is Types.ObjectId => id instanceof mongoose.Types.ObjectId);
+  const strings = ids
+    .filter((id): id is string => typeof id === 'string' && mongoose.Types.ObjectId.isValid(id))
+    .map((id) => new mongoose.Types.ObjectId(id));
+  const all = [...new Set([...objectIds, ...strings].map((id) => id.toString()))];
+  const map = new Map<string, string | null>();
+  const missing = all.filter((id) => !ownerEmailCache.has(id));
+  if (missing.length > 0) {
+    const users = await UserModel.find({ _id: { $in: missing.map((id) => new mongoose.Types.ObjectId(id)) } }, { email: 1 }).lean();
+    for (const user of users) {
+      ownerEmailCache.set(user._id.toString(), user.email ?? null);
+    }
+    for (const id of missing) {
+      if (!ownerEmailCache.has(id)) {
+        ownerEmailCache.set(id, null);
+      }
+    }
+  }
+  for (const id of all) {
+    map.set(id, ownerEmailCache.get(id) ?? null);
+  }
+  return map;
+}
+
+function toPublicFolder(
+  folder: HydratedDocument<Folder>,
+  ownerEmails?: Map<string, string | null>
+): PublicFolder {
+  const ownerId = folder.ownerId.toString();
   return {
     id: folder._id.toString(),
-    ownerId: folder.ownerId.toString(),
+    ownerId,
+    ownerEmail: ownerEmails?.get(ownerId) ?? ownerEmailCache.get(ownerId) ?? null,
+    createdBy: folder.createdBy ? folder.createdBy.toString() : null,
     parentId: folder.parentId ? folder.parentId.toString() : null,
     isRoot: folder.isRoot,
     name: folder.name,
@@ -67,17 +102,13 @@ export class FolderService {
       FolderModel.countDocuments(folderFilter),
       FileModel.countDocuments(fileFilter),
     ]);
+    const ownerEmails = await ownerEmailMap([
+      ...folders.map((folder) => folder.ownerId),
+      ...files.map((file) => file.ownerId),
+    ]);
     return {
-      folders: folders.map((folder) => toPublicFolder(folder)),
-      files: files.map((file) => ({
-        id: file._id.toString(),
-        name: file.name,
-        mimeType: file.mimeType,
-        category: file.category,
-        size: file.size,
-        createdAt: file.createdAt,
-        updatedAt: file.updatedAt,
-      })),
+      folders: folders.map((folder) => toPublicFolder(folder, ownerEmails)),
+      files: files.map((file) => toPublicFile(file, ownerEmails)),
       page,
       limit,
       totalFolders,
