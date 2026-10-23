@@ -53,8 +53,8 @@ export class ActivityAffected implements OnInit {
 
   goToResource(item: ActivityAffectedItem): string {
     if (item.resourceType === 'folder') {
-      return `/drive?folderId=${item.resourceId}`;
+      return `${item.resourceId}`;
     }
-    return `/drive`;
+    return `file/${item.resourceId}`;
   }
 }

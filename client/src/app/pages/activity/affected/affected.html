@@ -20,7 +20,7 @@
         <td>{{ item.action }}</td>
         <td>{{ item.resourceType }}</td>
         <td>
-          <a [routerLink]="goToResource(item)">{{ item.resourceSnapshot?.['name'] || item.resourceId }}</a>
+          <a [routerLink]="'/drive'" [queryParams]="{ folderId: goToResource(item) }">{{ item.resourceSnapshot?.['name'] || item.resourceId }}</a>
         </td>
       </tr>
     </ng-template>
