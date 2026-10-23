@@ -22,6 +22,7 @@ import {
   DriveViewItem,
 } from '../../shared/components/drive-view/drive-view';
 import { PermissionsDialog } from '../../shared/components/permissions-dialog/permissions-dialog';
+import { FilePreviewDialog } from '../../shared/components/file-preview-dialog/file-preview-dialog';
 import type { DriveFile, DriveFolder } from '../../models/folder.model';
 import { formatBytes } from '../../shared/format';
 
@@ -34,6 +35,7 @@ import { formatBytes } from '../../shared/format';
     DatePickerModule,
     DialogModule,
     DriveView,
+    FilePreviewDialog,
     InputTextModule,
     MenuModule,
     PermissionsDialog,
@@ -157,6 +159,9 @@ export class Drive implements OnInit {
 
   protected readonly permTarget = signal<{ kind: 'file' | 'folder'; id: string; name: string } | null>(null);
   protected readonly showPermissions = signal(false);
+
+  protected readonly previewTarget = signal<DriveFile | null>(null);
+  protected readonly showPreview = signal(false);
 
   protected readonly breadcrumb = computed<MenuItem[]>(() =>
     this.crumbs().map((folder, index, chain) =>
@@ -531,6 +536,7 @@ export class Drive implements OnInit {
     }
     const file = item.data as DriveFile;
     const actions: DriveViewAction[] = [
+      { id: 'preview', icon: 'pi pi-eye', label: 'Vista previa', severity: 'secondary' },
       { id: 'download', icon: 'pi pi-download', label: 'Descargar archivo', severity: 'secondary' },
       { id: 'history', icon: 'pi pi-history', label: 'Historial', severity: 'secondary' },
     ];
@@ -579,7 +585,9 @@ export class Drive implements OnInit {
       return;
     }
     const file = item.data as DriveFile;
-    if (actionId === 'history') {
+    if (actionId === 'preview') {
+      this.openPreview(file);
+    } else if (actionId === 'history') {
       this.openHistory(item);
     } else if (actionId === 'rename') {
       this.openRenameFile(file);
@@ -637,6 +645,7 @@ export class Drive implements OnInit {
 
   private fileMenu(file: DriveFile): MenuItem[] {
     const items: MenuItem[] = [
+      { label: 'Vista previa', icon: 'pi pi-eye', command: () => this.openPreview(file) },
       { label: 'Descargar', icon: 'pi pi-download', command: () => this.downloadById(file) },
       { label: 'Historial', icon: 'pi pi-history', command: () => this.router.navigate(['/activity'], { queryParams: { resourceType: 'file', resourceId: file.id } }) },
     ];
@@ -714,6 +723,11 @@ export class Drive implements OnInit {
         this.uploadPercent.set(0);
       },
     });
+  }
+
+  protected openPreview(file: DriveFile): void {
+    this.previewTarget.set(file);
+    this.showPreview.set(true);
   }
 
   protected openHistory(item: DriveViewItem): void {

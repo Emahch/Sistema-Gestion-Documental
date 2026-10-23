@@ -16,6 +16,7 @@ import { ShareService } from '../../core/share.service';
 import { FolderService } from '../../core/folder.service';
 import { DriveView, DriveViewItem } from '../../shared/components/drive-view/drive-view';
 import { PermissionsDialog } from '../../shared/components/permissions-dialog/permissions-dialog';
+import { FilePreviewDialog } from '../../shared/components/file-preview-dialog/file-preview-dialog';
 import type { ShareItem } from '../../models/share.model';
 
 interface SharedGroup {
@@ -42,6 +43,7 @@ interface ActionTarget {
     ConfirmDialogModule,
     DialogModule,
     DriveView,
+    FilePreviewDialog,
     InputTextModule,
     MenuModule,
     PermissionsDialog,
@@ -147,6 +149,9 @@ export class Shared implements OnInit {
   protected readonly uploadPercent = signal(0);
 
   protected readonly trashTarget = signal<ActionTarget | null>(null);
+
+  protected readonly previewTarget = signal<{ id: string; name: string } | null>(null);
+  protected readonly showPreview = signal(false);
 
   constructor(
     private sharesApi: ShareService,
@@ -416,6 +421,13 @@ export class Shared implements OnInit {
     });
   }
 
+  protected openPreviewShared(item: DriveViewItem): void {
+    const target = this.resolveTarget(item);
+    if (target.kind !== 'file') return;
+    this.previewTarget.set({ id: target.id, name: target.name });
+    this.showPreview.set(true);
+  }
+
   protected openItemMenu(event: MouseEvent, item: DriveViewItem): void {
     event.stopPropagation();
     const target = this.resolveTarget(item);
@@ -428,6 +440,9 @@ export class Shared implements OnInit {
           this.mode() === 'by-me' ? this.openSharedItem(item) : this.openWithMeItem(item),
       },
     ];
+    if (!isFolder) {
+      items.push({ label: 'Vista previa', icon: 'pi pi-eye', command: () => this.openPreviewShared(item) });
+    }
     if (target.canEdit) {
       items.push(
         { label: 'Renombrar', icon: 'pi pi-pencil', command: () => this.openRenameShared(item) },

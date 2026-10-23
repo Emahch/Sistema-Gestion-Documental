@@ -52,6 +52,22 @@ export class FileController {
     }
   };
 
+  preview = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const stream = await this.fileService.previewFile(userId(req), routeParam(req), res);
+      stream.on('error', (err: Error) => {
+        if (!res.headersSent) {
+          res.status(500).json({ message: 'Error al leer el contenido' });
+        } else {
+          res.destroy(err);
+        }
+      });
+      stream.pipe(res);
+    } catch (err) {
+      next(err);
+    }
+  };
+
   edit = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const file = await this.fileService.editContent(userId(req), routeParam(req), req);

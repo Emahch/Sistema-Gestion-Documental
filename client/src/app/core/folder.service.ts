@@ -100,4 +100,8 @@ export class FolderService {
   downloadFile(id: string): Observable<Blob> {
     return this.http.get(`${this.baseUrl}/files/${id}/content`, { responseType: 'blob' });
   }
+
+  previewFile(id: string): Observable<string> {
+    return this.http.get(`${this.baseUrl}/files/${id}/preview`, { responseType: 'text' });
+  }
 }

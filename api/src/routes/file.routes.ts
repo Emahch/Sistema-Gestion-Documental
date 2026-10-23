@@ -189,6 +189,36 @@ router.get('/:id/content', auth, controller.download);
 
 /**
  * @openapi
+ * /api/files/{id}/preview:
+ *   get:
+ *     summary: Vista previa del contenido de un archivo TXT o MD
+ *     description: Devuelve el contenido como stream inline en UTF-8. No registra actividad.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Contenido del archivo inline
+ *         content:
+ *           text/plain:
+ *             schema: { type: string }
+ *       400:
+ *         description: El archivo no es TXT ni MD
+ *       401:
+ *         description: Sin token o inactivo
+ *       403:
+ *         description: Sin acceso al archivo
+ *       404:
+ *         description: Archivo no encontrado
+ */
+router.get('/:id/preview', auth, controller.preview);
+
+/**
+ * @openapi
  * /api/files/{id}/content:
  *   put:
  *     summary: Reemplaza el contenido de un archivo (multipart)

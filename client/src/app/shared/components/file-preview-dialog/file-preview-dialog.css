@@ -1,0 +1,32 @@
+.preview-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 8rem;
+}
+
+.preview-hint {
+  margin: 0;
+  color: var(--p-text-muted-color);
+}
+
+.preview-error {
+  margin: 0;
+  color: var(--p-red-500);
+}
+
+.preview-content {
+  margin: 0;
+  max-height: 65vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: 2;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  padding: 1rem;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: var(--p-border-radius-md);
+  background: var(--p-content-background);
+  color: var(--p-text-color);
+}

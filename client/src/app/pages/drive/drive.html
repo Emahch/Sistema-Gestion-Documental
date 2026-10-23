@@ -217,3 +217,9 @@
   [resourceId]="permTarget()?.id ?? ''"
   [resourceName]="permTarget()?.name ?? ''"
 />
+
+<app-file-preview-dialog
+  [(visible)]="showPreview"
+  [fileId]="previewTarget()?.id ?? ''"
+  [fileName]="previewTarget()?.name ?? ''"
+/>

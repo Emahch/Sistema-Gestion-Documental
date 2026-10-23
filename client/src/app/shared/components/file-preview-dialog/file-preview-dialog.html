@@ -1,0 +1,20 @@
+<p-dialog
+  [header]="'Vista previa — ' + fileName()"
+  [visible]="visible()"
+  (visibleChange)="visible.set($event)"
+  [modal]="true"
+  [style]="{ width: 'min(52rem, 92vw)' }"
+>
+  <div class="preview-body">
+    @if (loading()) {
+      <p class="preview-hint">Cargando vista previa...</p>
+    } @else if (error()) {
+      <p class="preview-error">{{ error() }}</p>
+    } @else {
+      <pre class="preview-content">{{ content() }}</pre>
+    }
+  </div>
+  <ng-template #footer>
+    <p-button label="Cerrar" (onClick)="visible.set(false)" />
+  </ng-template>
+</p-dialog>

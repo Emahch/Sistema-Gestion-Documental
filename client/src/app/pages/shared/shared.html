@@ -43,6 +43,12 @@
   [resourceName]="permTarget()?.name ?? ''"
 />
 
+<app-file-preview-dialog
+  [(visible)]="showPreview"
+  [fileId]="previewTarget()?.id ?? ''"
+  [fileName]="previewTarget()?.name ?? ''"
+/>
+
 <p-dialog header="Renombrar" [visible]="showRename()" [modal]="true" [style]="{ width: '380px' }" (visibleChange)="showRename.set($event)">
   <div class="dialog-form">
     <label>Nombre</label>

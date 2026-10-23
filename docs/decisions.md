@@ -51,6 +51,7 @@ Esquema e índices en vivo: [erd.md](./erd.md) (generado con `npm run db:diagram
 - Mover lo puede hacer el dueño o un usuario con permiso `edit`, siempre dentro del mismo `ownerId`; el destino exige permiso `edit`; duplicados -> 409.
 - `GET /api/folders/move-destinations?resourceType=&resourceId=` devuelve las carpetas del mismo propietario sobre las que el actor tiene `owner`/`edit`; al mover una carpeta excluye la propia carpeta y todo su subárbol.
 - Descarga con `Content-Disposition: attachment`. Log `DOWNLOAD` (errores con `GRIDFS_READ_FAILED`).
+- Vista previa `GET /api/files/:id/preview`: solo TXT/MD, stream inline (`Content-Disposition: inline`) con `charset=utf-8`. No registra ningún log de actividad, por lo que no existe la acción `VIEW`.
 
 ### Carpetas y explorador
 
@@ -86,6 +87,13 @@ Esquema e índices en vivo: [erd.md](./erd.md) (generado con `npm run db:diagram
 - En "Compartidos por mí" el dueño puede abrir/descargar, renombrar, mover, reemplazar contenido (archivos), administrar permisos y enviar a la papelera. En "Compartidos conmigo" un permiso `edit` habilita renombrar, mover y reemplazar; administrar permisos y enviar a la papelera siguen reservados al propietario.
 - Eliminar (papelera) nunca lo puede hacer un receptor, ni siquiera con `edit`: la papelera, la cuota y la restauración son del propietario.
 
+
+## Vista previa
+
+- El componente reutilizable `app-file-preview-dialog` carga el contenido con `FolderService.previewFile()` (respuesta de texto) y lo muestra en un `<pre>` con scroll; Angular escapa el contenido automáticamente.
+- La vista previa está disponible para archivos en el explorador y en "Compartidos"; respeta el permiso efectivo de lectura.
+- Abrir o cerrar la vista previa no genera actividad: el endpoint de preview no crea `ActivityLog`, a diferencia de la descarga.
+- El nombre del archivo se envía en `Content-Disposition` con fallback ASCII y `filename*` UTF-8 para nombres con acentos.
 
 ## Búsqueda y filtros
 

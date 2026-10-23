@@ -248,6 +248,25 @@ export class FileService {
     return new mongoose.mongo.GridFSBucket(db).openDownloadStream(file.gridFsId);
   }
 
+  async previewFile(userId: string, id: string, res: Response): Promise<Readable> {
+    const file = await this.accessibleFile(userId, id, 'read');
+    if (file.category !== 'TXT' && file.category !== 'MD') {
+      throw new BadRequestError('La vista previa solo está disponible para TXT y MD');
+    }
+    const asciiName = file.name.replace(/[^\x20-\x7E]/g, '_').replace(/"/g, '');
+    res.setHeader('Content-Type', `${file.mimeType}; charset=utf-8`);
+    res.setHeader('Content-Length', String(file.size));
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(file.name)}`
+    );
+    const db = mongoose.connection.db;
+    if (!db) {
+      throw new HttpError(500, 'Sin conexión a MongoDB');
+    }
+    return new mongoose.mongo.GridFSBucket(db).openDownloadStream(file.gridFsId);
+  }
+
   async logDownloadError(userId: string, id: string, message: string): Promise<void> {
     const file = await FileModel.findById(id);
     if (!file) {
