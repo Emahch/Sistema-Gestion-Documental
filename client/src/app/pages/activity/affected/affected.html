@@ -1,0 +1,33 @@
+<div class="activity-affected">
+  <div class="header">
+    <h2>Actividad que me afecta</h2>
+  </div>
+
+  <p-table [value]="items" [loading]="loading" [paginator]="true" [rows]="limit" [first]="(page - 1) * limit" [totalRecords]="total" [lazy]="true" (onLazyLoad)="page = ($event.first / $event.rows) + 1; limit = $event.rows; load()" [rowsPerPageOptions]="[25,50,100]">
+    <ng-template pTemplate="header">
+      <tr>
+        <th>Fecha</th>
+        <th>Actor</th>
+        <th>Acción</th>
+        <th>Recurso</th>
+        <th>Nombre</th>
+      </tr>
+    </ng-template>
+    <ng-template pTemplate="body" let-item>
+      <tr>
+        <td>{{ item.timestamp | date: 'medium' }}</td>
+        <td>{{ item.actorEmail || '' }}</td>
+        <td>{{ item.action }}</td>
+        <td>{{ item.resourceType }}</td>
+        <td>
+          <a [routerLink]="goToResource(item)">{{ item.resourceSnapshot?.['name'] || item.resourceId }}</a>
+        </td>
+      </tr>
+    </ng-template>
+    <ng-template pTemplate="emptymessage">
+      <tr>
+        <td colspan="5">No hay actividad que te afecte.</td>
+      </tr>
+    </ng-template>
+  </p-table>
+</div>

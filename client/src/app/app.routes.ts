@@ -7,6 +7,8 @@ import { Login } from './pages/login/login';
 import { Shared } from './pages/shared/shared';
 import { Trash } from './pages/trash/trash';
 import { Users } from './pages/users/users';
+import { ActivityHistory } from './pages/activity/history/history';
+import { ActivityAffected } from './pages/activity/affected/affected';
 
 export const routes: Routes = [
   { path: 'login', component: Login, canActivate: [visitorGuard] },
@@ -20,6 +22,8 @@ export const routes: Routes = [
       { path: 'shared-with-me', component: Shared, data: { mode: 'with-me' } },
       { path: 'shared-by-me', component: Shared, data: { mode: 'by-me' } },
       { path: 'trash', component: Trash },
+      { path: 'activity', component: ActivityHistory },
+      { path: 'activity/affected', component: ActivityAffected },
       { path: 'users', component: Users, canActivate: [adminGuard] },
     ],
   },

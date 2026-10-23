@@ -356,6 +356,8 @@ export class Drive implements OnInit {
     if (item.kind === 'folder') {
       const folder = item.data as DriveFolder;
       const actions: DriveViewAction[] = [
+        { id: 'open', icon: 'pi pi-folder-open', label: 'Abrir carpeta', severity: 'secondary' },
+        { id: 'history', icon: 'pi pi-history', label: 'Historial', severity: 'secondary' },
         { id: 'rename', icon: 'pi pi-pencil', label: 'Renombrar carpeta', severity: 'secondary' },
         { id: 'move', icon: 'pi pi-send', label: 'Mover carpeta', severity: 'secondary' },
       ];
@@ -367,10 +369,11 @@ export class Drive implements OnInit {
     }
     const file = item.data as DriveFile;
     const actions: DriveViewAction[] = [
+      { id: 'download', icon: 'pi pi-download', label: 'Descargar archivo', severity: 'secondary' },
+      { id: 'history', icon: 'pi pi-history', label: 'Historial', severity: 'secondary' },
       { id: 'rename', icon: 'pi pi-pencil', label: 'Renombrar archivo', severity: 'secondary' },
       { id: 'move', icon: 'pi pi-send', label: 'Mover archivo', severity: 'secondary' },
       { id: 'replace', icon: 'pi pi-file-edit', label: 'Reemplazar contenido', severity: 'secondary' },
-      { id: 'download', icon: 'pi pi-download', label: 'Descargar archivo', severity: 'secondary' },
     ];
     if (this.isOwner(file.ownerId)) {
       actions.push({ id: 'permissions', icon: 'pi pi-users', label: 'Administrar permisos', severity: 'secondary' });
@@ -431,6 +434,7 @@ export class Drive implements OnInit {
   private folderMenu(folder: DriveFolder): MenuItem[] {
     const items: MenuItem[] = [
       { label: 'Abrir', icon: 'pi pi-folder-open', command: () => this.openFolder(folder.id) },
+      { label: 'Historial', icon: 'pi pi-history', command: () => this.router.navigate(['/activity'], { queryParams: { resourceType: 'folder', resourceId: folder.id } }) },
       { label: 'Renombrar', icon: 'pi pi-pencil', command: () => this.openRename(folder) },
       { label: 'Mover', icon: 'pi pi-send', command: () => this.openMove(folder) },
     ];
@@ -455,6 +459,7 @@ export class Drive implements OnInit {
   private fileMenu(file: DriveFile): MenuItem[] {
     const items: MenuItem[] = [
       { label: 'Descargar', icon: 'pi pi-download', command: () => this.downloadById(file) },
+      { label: 'Historial', icon: 'pi pi-history', command: () => this.router.navigate(['/activity'], { queryParams: { resourceType: 'file', resourceId: file.id } }) },
       { label: 'Renombrar', icon: 'pi pi-pencil', command: () => this.openRenameFile(file) },
       { label: 'Mover', icon: 'pi pi-send', command: () => this.openMoveFile(file) },
       { label: 'Reemplazar contenido', icon: 'pi pi-file-edit', command: () => this.openReplace(file) },
@@ -525,6 +530,12 @@ export class Drive implements OnInit {
         this.uploading.set(false);
         this.uploadPercent.set(0);
       },
+    });
+  }
+
+  protected openHistory(item: DriveViewItem): void {
+    this.router.navigate(['/activity'], {
+      queryParams: { resourceType: item.kind, resourceId: item.id },
     });
   }
 

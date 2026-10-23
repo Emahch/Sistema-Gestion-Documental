@@ -10,6 +10,7 @@ import { BadRequestError, ConflictError, ForbiddenError, HttpError, NotFoundErro
 import { PermissionService } from './permission.service';
 import { toPublicFile } from './file.service';
 import { UserModel } from '../models/user.model';
+import { computeAffectedUserIds } from './activity.service';
 
 export interface FolderChildren {
   folders: PublicFolder[];
@@ -186,6 +187,12 @@ export class FolderService {
       }
       throw err;
     }
+    const affected = await computeAffectedUserIds({
+      actorId: userId,
+      resourceType: 'folder',
+      resourceId: folder._id,
+      ownerId: folder.ownerId,
+    });
     await ActivityLogModel.create({
       userId: new mongoose.Types.ObjectId(userId),
       action: 'RENAME',
@@ -194,7 +201,7 @@ export class FolderService {
       resourceId: folder._id,
       resourceSnapshot: { name: folder.name },
       details: { previousName, newName: cleanName },
-      affectedUserIds: [],
+      affectedUserIds: affected,
     });
     return toPublicFolder(folder);
   }
@@ -253,6 +260,12 @@ export class FolderService {
         if (rewrites.length > 0) {
           await FolderModel.bulkWrite(rewrites, { session });
         }
+        const affected = await computeAffectedUserIds({
+          actorId: userId,
+          resourceType: 'folder',
+          resourceId: folder._id,
+          ownerId: folder.ownerId,
+        });
         await ActivityLogModel.create(
           [
             {
@@ -263,7 +276,7 @@ export class FolderService {
               resourceId: folder._id,
               resourceSnapshot: { name: folder.name },
               details: { previousFolderId: previousParentId, newFolderId: destination._id },
-              affectedUserIds: [],
+              affectedUserIds: affected,
             },
           ],
           { session, ordered: true }
@@ -327,6 +340,32 @@ export class FolderService {
           { session }
         );
         trashedFiles = files.modifiedCount;
+        const folderAffected = await computeAffectedUserIds({
+          actorId: userId,
+          resourceType: 'folder',
+          resourceId: folder._id,
+          ownerId: folder.ownerId,
+        });
+        const descAffected = await Promise.all(
+          descendants.map((child) =>
+            computeAffectedUserIds({
+              actorId: userId,
+              resourceType: 'folder',
+              resourceId: child._id,
+              ownerId: child.ownerId,
+            })
+          )
+        );
+        const fileAffected = await Promise.all(
+          affectedFiles.map((file) =>
+            computeAffectedUserIds({
+              actorId: userId,
+              resourceType: 'file',
+              resourceId: file._id,
+              ownerId: file.ownerId,
+            })
+          )
+        );
         await ActivityLogModel.create(
           [
             {
@@ -337,9 +376,9 @@ export class FolderService {
               resourceId: folder._id,
               resourceSnapshot: { name: folder.name },
               details: { deletionId, isDeletionRoot: true },
-              affectedUserIds: [],
+              affectedUserIds: folderAffected,
             },
-            ...descendants.map((child) => ({
+            ...descendants.map((child, idx) => ({
               userId: actorId,
               action: 'TRASH',
               status: 'success',
@@ -347,9 +386,9 @@ export class FolderService {
               resourceId: child._id,
               resourceSnapshot: { name: child.name },
               details: { deletionId, isDeletionRoot: false },
-              affectedUserIds: [],
+              affectedUserIds: descAffected[idx],
             })),
-            ...affectedFiles.map((file) => ({
+            ...affectedFiles.map((file, idx) => ({
               userId: actorId,
               action: 'TRASH',
               status: 'success',
@@ -357,7 +396,7 @@ export class FolderService {
               resourceId: file._id,
               resourceSnapshot: { name: file.name },
               details: { deletionId, isDeletionRoot: false },
-              affectedUserIds: [],
+              affectedUserIds: fileAffected[idx],
             })),
           ],
           { session, ordered: true }

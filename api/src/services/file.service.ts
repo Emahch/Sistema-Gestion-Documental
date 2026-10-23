@@ -20,6 +20,7 @@ import {
 } from '../errors/http-error';
 import path from 'path';
 import { PermissionService, RequiredPermission } from './permission.service';
+import { computeAffectedUserIds } from './activity.service';
 
 const ownerEmailCache = new Map<string, string | null>();
 
@@ -142,6 +143,12 @@ export class FileService {
         if (!created) {
           throw new HttpError(500, 'No se pudo crear el archivo');
         }
+        const affected = await computeAffectedUserIds({
+          actorId: userId,
+          resourceType: 'file',
+          resourceId: created._id,
+          ownerId: created.ownerId,
+        });
         await ActivityLogModel.create(
           [
             {
@@ -152,7 +159,7 @@ export class FileService {
               resourceId: created._id,
               resourceSnapshot: { name: created.name },
               details: { gridFsId: uploaded.gridFsId, size: uploaded.size, folderId: folder._id },
-              affectedUserIds: [],
+              affectedUserIds: affected,
             },
           ],
           { session, ordered: true }
@@ -277,6 +284,12 @@ export class FileService {
           throw new NotFoundError('Archivo no encontrado');
         }
         updated = fresh;
+        const affected = await computeAffectedUserIds({
+          actorId: userId,
+          resourceType: 'file',
+          resourceId: file._id,
+          ownerId: file.ownerId,
+        });
         await ActivityLogModel.create(
           [
             {
@@ -287,7 +300,7 @@ export class FileService {
               resourceId: file._id,
               resourceSnapshot: { name: file.name },
               details: { previousGridFsId, newGridFsId: uploaded.gridFsId, previousSize, newSize: uploaded.size },
-              affectedUserIds: [],
+              affectedUserIds: affected,
             },
           ],
           { session, ordered: true }
@@ -329,6 +342,12 @@ export class FileService {
       }
       throw err;
     }
+    const affected = await computeAffectedUserIds({
+      actorId: userId,
+      resourceType: 'file',
+      resourceId: file._id,
+      ownerId: file.ownerId,
+    });
     await ActivityLogModel.create({
       userId: new mongoose.Types.ObjectId(userId),
       action: 'RENAME',
@@ -337,7 +356,7 @@ export class FileService {
       resourceId: file._id,
       resourceSnapshot: { name: file.name },
       details: { previousName, newName: cleanName },
-      affectedUserIds: [],
+      affectedUserIds: affected,
     });
     return toPublicFile(file);
   }
@@ -367,6 +386,12 @@ export class FileService {
       }
       throw err;
     }
+    const affected = await computeAffectedUserIds({
+      actorId: userId,
+      resourceType: 'file',
+      resourceId: file._id,
+      ownerId: file.ownerId,
+    });
     await ActivityLogModel.create({
       userId: new mongoose.Types.ObjectId(userId),
       action: 'MOVE',
@@ -375,7 +400,7 @@ export class FileService {
       resourceId: file._id,
       resourceSnapshot: { name: file.name },
       details: { previousFolderId: origin._id, newFolderId: destination._id },
-      affectedUserIds: [],
+      affectedUserIds: affected,
     });
     return toPublicFile(file);
   }
@@ -392,6 +417,12 @@ export class FileService {
           { $set: { isDeleted: true, deletedAt, deletionId, isDeletionRoot: true } },
           { session }
         );
+        const affected = await computeAffectedUserIds({
+          actorId: userId,
+          resourceType: 'file',
+          resourceId: file._id,
+          ownerId: file.ownerId,
+        });
         await ActivityLogModel.create(
           [
             {
@@ -402,7 +433,7 @@ export class FileService {
               resourceId: file._id,
               resourceSnapshot: { name: file.name },
               details: { deletionId, isDeletionRoot: true },
-              affectedUserIds: [],
+              affectedUserIds: affected,
             },
           ],
           { session, ordered: true }

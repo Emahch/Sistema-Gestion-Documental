@@ -16,6 +16,7 @@ import {
   NotFoundError,
 } from '../errors/http-error';
 import { PermissionService, ResourceType } from './permission.service';
+import { computeAffectedUserIds } from './activity.service';
 
 export interface ShareInput {
   resourceType: unknown;
@@ -142,16 +143,22 @@ export class ShareService {
       if (!share) {
         throw new HttpError(500, 'No se pudo crear el share');
       }
-      await ActivityLogModel.create({
-        userId: ownerObjectId,
-        action: 'SHARE',
-        status: 'success',
-        resourceType,
-        resourceId: doc._id,
-        resourceSnapshot: { name: doc.name },
-        details: { sharedWithId: targetObjectId, permission, origin },
-        affectedUserIds: [targetObjectId],
-      });
+        const affected = await computeAffectedUserIds({
+          actorId: ownerId,
+          resourceType: resourceType === 'folder' ? 'folder' : 'file',
+          resourceId: doc._id,
+          ownerId: doc.ownerId,
+        });
+        await ActivityLogModel.create({
+          userId: new mongoose.Types.ObjectId(ownerId),
+          action: 'SHARE',
+          status: 'success',
+          resourceType: resourceType === 'folder' ? 'folder' : 'file',
+          resourceId: doc._id,
+          resourceSnapshot: { name: doc.name },
+          details: { sharedWithId: targetObjectId, permission, origin },
+          affectedUserIds: affected,
+        });
       const created = !result.lastErrorObject?.updatedExisting;
       return {
         share: toPublicShare(share, doc.name, owner?.email ?? '', target.email),
@@ -192,15 +199,21 @@ export class ShareService {
       UserModel.findById(share.sharedWithId),
       UserModel.findById(share.ownerId),
     ]);
+    const affected = await computeAffectedUserIds({
+      actorId: ownerId,
+      resourceType: share.resourceType === 'folder' ? 'folder' : 'file',
+      resourceId: share.resourceId,
+      ownerId: share.ownerId,
+    });
     await ActivityLogModel.create({
       userId: new mongoose.Types.ObjectId(ownerId),
       action: 'PERMISSION_CHANGE',
       status: 'success',
-      resourceType: share.resourceType,
+      resourceType: share.resourceType === 'folder' ? 'folder' : 'file',
       resourceId: share.resourceId,
       resourceSnapshot: { name: resource?.doc.name ?? '' },
       details: { sharedWithId: share.sharedWithId, permission },
-      affectedUserIds: [share.sharedWithId],
+      affectedUserIds: affected,
     });
     return toPublicShare(share, resource?.doc.name ?? '', owner?.email ?? '', target?.email ?? '');
   }
@@ -227,15 +240,21 @@ export class ShareService {
     }
     const resource = await this.permissions.findResource(share.resourceType, String(share.resourceId));
     await ShareModel.deleteOne({ _id: share._id });
+    const affected = await computeAffectedUserIds({
+      actorId: ownerId,
+      resourceType: share.resourceType === 'folder' ? 'folder' : 'file',
+      resourceId: share.resourceId,
+      ownerId: share.ownerId,
+    });
     await ActivityLogModel.create({
       userId: new mongoose.Types.ObjectId(ownerId),
       action: 'UNSHARE',
       status: 'success',
-      resourceType: share.resourceType,
+      resourceType: share.resourceType === 'folder' ? 'folder' : 'file',
       resourceId: share.resourceId,
       resourceSnapshot: { name: resource?.doc.name ?? '' },
       details: { sharedWithId: share.sharedWithId },
-      affectedUserIds: [share.sharedWithId],
+      affectedUserIds: affected,
     });
   }
 

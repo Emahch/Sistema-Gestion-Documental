@@ -11,6 +11,7 @@ import folderRouter from './routes/folder.routes';
 import fileRouter from './routes/file.routes';
 import shareRouter from './routes/share.routes';
 import trashRouter from './routes/trash.routes';
+import activityRouter from './routes/activity.routes';
 
 const app = express();
 
@@ -47,6 +48,7 @@ app.use('/api/folders', folderRouter);
 app.use('/api/files', fileRouter);
 app.use('/api/shares', shareRouter);
 app.use('/api/trash', trashRouter);
+app.use('/api/activity', activityRouter);
 
 app.use(notFound);
 app.use(errorHandler);
