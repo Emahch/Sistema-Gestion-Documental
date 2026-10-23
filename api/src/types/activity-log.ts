@@ -18,12 +18,11 @@ export type ActivityAction =
   | 'USER_STATUS_CHANGE'
   | 'QUOTA_CHANGE';
 
-export type ActivityStatus = 'success' | 'error';
-
 export interface ActivityLog {
   userId: Types.ObjectId;
+  userEmail?: string | null;
   action: ActivityAction;
-  status: ActivityStatus;
+  status: 'success' | 'error';
   resourceType: string;
   resourceId: Types.ObjectId;
   resourceSnapshot: Record<string, unknown>;

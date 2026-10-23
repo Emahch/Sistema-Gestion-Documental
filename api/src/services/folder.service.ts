@@ -55,13 +55,15 @@ async function ownerEmailMap(ids: Array<unknown>): Promise<Map<string, string | 
 
 function toPublicFolder(
   folder: HydratedDocument<Folder>,
-  ownerEmails?: Map<string, string | null>
+  ownerEmails?: Map<string, string | null>,
+  permission?: 'owner' | 'edit' | 'read' | null
 ): PublicFolder {
   const ownerId = folder.ownerId.toString();
   return {
     id: folder._id.toString(),
     ownerId,
     ownerEmail: ownerEmails?.get(ownerId) ?? ownerEmailCache.get(ownerId) ?? null,
+    permission,
     createdBy: folder.createdBy ? folder.createdBy.toString() : null,
     parentId: folder.parentId ? folder.parentId.toString() : null,
     isRoot: folder.isRoot,
@@ -77,7 +79,7 @@ export class FolderService {
 
   async root(userId: string): Promise<PublicFolder> {
     const root = await this.readableFolder(userId, null);
-    return toPublicFolder(root);
+    return toPublicFolder(root, undefined, 'owner');
   }
 
   async listChildren(
@@ -107,9 +109,30 @@ export class FolderService {
       ...folders.map((folder) => folder.ownerId),
       ...files.map((file) => file.ownerId),
     ]);
+    const permissions = await this.permissions.effectivePermissionMap(
+      userId,
+      [
+        ...folders.map((folder) => ({
+          kind: 'folder' as const,
+          id: folder._id.toString(),
+          ownerId: folder.ownerId.toString(),
+          ancestors: folder.ancestors.map((id) => id.toString()),
+        })),
+        ...files.map((file) => ({
+          kind: 'file' as const,
+          id: file._id.toString(),
+          ownerId: file.ownerId.toString(),
+          folderId: file.folderId.toString(),
+        })),
+      ]
+    );
     return {
-      folders: folders.map((folder) => toPublicFolder(folder, ownerEmails)),
-      files: files.map((file) => toPublicFile(file, ownerEmails)),
+      folders: folders.map((folder) =>
+        toPublicFolder(folder, ownerEmails, permissions.get(`folder:${folder._id.toString()}`) ?? null)
+      ),
+      files: files.map((file) =>
+        toPublicFile(file, ownerEmails, permissions.get(`file:${file._id.toString()}`) ?? null)
+      ),
       page,
       limit,
       totalFolders,
@@ -142,15 +165,23 @@ export class FolderService {
         nameNormalized: normalizeName(cleanName),
         ancestors: [...parent.ancestors, parent._id],
       });
+      const affected = await computeAffectedUserIds({
+        actorId: userId,
+        resourceType: 'folder',
+        resourceId: created._id,
+        ownerId: created.ownerId,
+      });
+      const actorUser = await UserModel.findById(userId, { email: 1 }).lean().catch(() => null);
       await ActivityLogModel.create({
         userId: new mongoose.Types.ObjectId(userId),
+        userEmail: actorUser?.email ?? null,
         action: 'FOLDER_CREATE',
         status: 'success',
         resourceType: 'folder',
         resourceId: created._id,
         resourceSnapshot: { name: created.name },
         details: { parentId: parent._id, createdBy: userId },
-        affectedUserIds: [],
+        affectedUserIds: affected,
       });
       return toPublicFolder(created);
     } catch (err) {
@@ -193,8 +224,10 @@ export class FolderService {
       resourceId: folder._id,
       ownerId: folder.ownerId,
     });
+    const actorUser = await UserModel.findById(userId, { email: 1 }).lean().catch(() => null);
     await ActivityLogModel.create({
       userId: new mongoose.Types.ObjectId(userId),
+      userEmail: actorUser?.email ?? null,
       action: 'RENAME',
       status: 'success',
       resourceType: 'folder',
@@ -210,7 +243,13 @@ export class FolderService {
     if (typeof destinationId !== 'string' || !destinationId) {
       throw new BadRequestError('destinationId es obligatorio');
     }
-    const folder = await this.ownedFolder(userId, id);
+    if (!(await this.permissions.canAccess(userId, 'folder', id, 'edit'))) {
+      throw new ForbiddenError('Sin acceso a la carpeta');
+    }
+    const folder = await FolderModel.findById(id);
+    if (!folder || folder.isDeleted) {
+      throw new NotFoundError('Carpeta no encontrada');
+    }
     if (folder.isRoot) {
       throw new BadRequestError('La raíz no puede moverse');
     }
@@ -266,10 +305,12 @@ export class FolderService {
           resourceId: folder._id,
           ownerId: folder.ownerId,
         });
+        const actorUser = await UserModel.findById(userId, { email: 1 }).lean().catch(() => null);
         await ActivityLogModel.create(
           [
             {
               userId: new mongoose.Types.ObjectId(userId),
+              userEmail: actorUser?.email ?? null,
               action: 'MOVE',
               status: 'success',
               resourceType: 'folder',
@@ -366,10 +407,12 @@ export class FolderService {
             })
           )
         );
+        const actorUser = await UserModel.findById(userId, { email: 1 }).lean().catch(() => null);
         await ActivityLogModel.create(
           [
             {
               userId: actorId,
+              userEmail: actorUser?.email ?? null,
               action: 'TRASH',
               status: 'success',
               resourceType: 'folder',
@@ -380,6 +423,7 @@ export class FolderService {
             },
             ...descendants.map((child, idx) => ({
               userId: actorId,
+              userEmail: actorUser?.email ?? null,
               action: 'TRASH',
               status: 'success',
               resourceType: 'folder',
@@ -390,6 +434,7 @@ export class FolderService {
             })),
             ...affectedFiles.map((file, idx) => ({
               userId: actorId,
+              userEmail: actorUser?.email ?? null,
               action: 'TRASH',
               status: 'success',
               resourceType: 'file',
@@ -419,7 +464,75 @@ export class FolderService {
         chain.push(ancestor);
       }
     }
-    return [...chain, folder].map((item) => toPublicFolder(item));
+    const permissions = await this.permissions.effectivePermissionMap(
+      userId,
+      chain.map((item) => ({
+        kind: 'folder' as const,
+        id: item._id.toString(),
+        ownerId: item.ownerId.toString(),
+        ancestors: item.ancestors.map((ancestorId) => ancestorId.toString()),
+      }))
+    );
+    return [...chain, folder].map((item) =>
+      toPublicFolder(item, undefined, permissions.get(`folder:${item._id.toString()}`) ?? null)
+    );
+  }
+
+  async moveDestinations(
+    userId: string,
+    resourceType: unknown,
+    resourceId: unknown
+  ): Promise<Array<{ id: string; name: string; label: string }>> {
+    if (resourceType !== 'file' && resourceType !== 'folder') {
+      throw new BadRequestError('resourceType debe ser file o folder');
+    }
+    if (typeof resourceId !== 'string' || !resourceId) {
+      throw new BadRequestError('resourceId es obligatorio');
+    }
+    const found = await this.permissions.findResource(resourceType, resourceId);
+    if (!found || found.doc.isDeleted) {
+      throw new NotFoundError('Recurso no encontrado');
+    }
+    if (!(await this.permissions.canAccess(userId, resourceType, resourceId, 'edit'))) {
+      throw new ForbiddenError('Sin permiso de edición');
+    }
+    const ownerId = found.doc.ownerId;
+    const folders = await FolderModel.find({ ownerId, isDeleted: false }).sort({ nameNormalized: 1 });
+    const excluded = new Set<string>();
+    if (resourceType === 'folder') {
+      excluded.add(resourceId);
+      const descendants = await FolderModel.find({ ancestors: new mongoose.Types.ObjectId(resourceId), isDeleted: false }, { _id: 1 });
+      for (const descendant of descendants) {
+        excluded.add(descendant._id.toString());
+      }
+    }
+    const permissions = await this.permissions.effectivePermissionMap(
+      userId,
+      folders.map((folder) => ({
+        kind: 'folder' as const,
+        id: folder._id.toString(),
+        ownerId: folder.ownerId.toString(),
+        ancestors: folder.ancestors.map((id) => id.toString()),
+      }))
+    );
+    const byId = new Map(folders.map((folder) => [folder._id.toString(), folder]));
+    const pathOf = (folder: HydratedDocument<Folder>): string => {
+      const names = folder.ancestors
+        .map((ancestorId) => byId.get(ancestorId.toString())?.name)
+        .filter((name): name is string => Boolean(name));
+      return [...names, folder.name].join(' / ');
+    };
+    return folders
+      .filter((folder) => !excluded.has(folder._id.toString()))
+      .filter((folder) => {
+        const permission = permissions.get(`folder:${folder._id.toString()}`);
+        return permission === 'owner' || permission === 'edit';
+      })
+      .map((folder) => ({
+        id: folder._id.toString(),
+        name: folder.name,
+        label: pathOf(folder),
+      }));
   }
 
   private async ownedFolder(userId: string, id: string): Promise<HydratedDocument<Folder>> {

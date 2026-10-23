@@ -49,12 +49,17 @@ async function ownerEmailMap(ids: Array<unknown>): Promise<Map<string, string | 
   return map;
 }
 
-export function toPublicFile(file: HydratedDocument<File>, ownerEmails?: Map<string, string | null>): PublicFile {
+export function toPublicFile(
+  file: HydratedDocument<File>,
+  ownerEmails?: Map<string, string | null>,
+  permission?: 'owner' | 'edit' | 'read' | null
+): PublicFile {
   const ownerId = file.ownerId.toString();
   return {
     id: file._id.toString(),
     ownerId,
     ownerEmail: ownerEmails?.get(ownerId) ?? ownerEmailCache.get(ownerId) ?? null,
+    permission,
     name: file.name,
     mimeType: file.mimeType,
     category: file.category,
@@ -153,6 +158,7 @@ export class FileService {
           [
             {
               userId: ownerId,
+              userEmail: me.email,
               action: 'UPLOAD',
               status: 'success',
               resourceType: 'file',
@@ -220,8 +226,10 @@ export class FileService {
 
   async downloadFile(userId: string, id: string, res: Response): Promise<Readable> {
     const file = await this.accessibleFile(userId, id, 'read');
+    const actorUser = await UserModel.findById(userId, { email: 1 }).lean().catch(() => null);
     await ActivityLogModel.create({
       userId: new mongoose.Types.ObjectId(userId),
+      userEmail: actorUser?.email ?? null,
       action: 'DOWNLOAD',
       status: 'success',
       resourceType: 'file',
@@ -245,8 +253,10 @@ export class FileService {
     if (!file) {
       return;
     }
+    const actorUser = await UserModel.findById(userId, { email: 1 }).lean().catch(() => null);
     await ActivityLogModel.create({
       userId: new mongoose.Types.ObjectId(userId),
+      userEmail: actorUser?.email ?? null,
       action: 'DOWNLOAD',
       status: 'error',
       resourceType: 'file',
@@ -260,7 +270,16 @@ export class FileService {
   async editContent(userId: string, id: string, req: Request): Promise<PublicFile> {
     const file = await this.accessibleFile(userId, id, 'edit');
     const uploaded = await parseUpload(req);
+    const currentExtension = path.extname(file.name).toLowerCase();
+    const uploadedExtension = path.extname(uploaded.filename).toLowerCase();
+    if (currentExtension !== uploadedExtension) {
+      await deleteGridFsObject(uploaded.gridFsId);
+      throw new BadRequestError(
+        `El archivo de reemplazo debe conservar la extensión ${currentExtension || '(sin extensión)'}`
+      );
+    }
     const session = await mongoose.startSession();
+    const actorUser = await UserModel.findById(userId, { email: 1 }).lean().catch(() => null);
     const previousGridFsId = file.gridFsId;
     const previousSize = file.size;
     try {
@@ -294,6 +313,7 @@ export class FileService {
           [
             {
               userId: new mongoose.Types.ObjectId(userId),
+              userEmail: actorUser?.email ?? null,
               action: 'EDIT_CONTENT',
               status: 'success',
               resourceType: 'file',
@@ -348,8 +368,10 @@ export class FileService {
       resourceId: file._id,
       ownerId: file.ownerId,
     });
+    const actorUser = await UserModel.findById(userId, { email: 1 }).lean().catch(() => null);
     await ActivityLogModel.create({
       userId: new mongoose.Types.ObjectId(userId),
+      userEmail: actorUser?.email ?? null,
       action: 'RENAME',
       status: 'success',
       resourceType: 'file',
@@ -365,7 +387,7 @@ export class FileService {
     if (typeof destinationId !== 'string' || !destinationId) {
       throw new BadRequestError('destinationId es obligatorio');
     }
-    const file = await this.ownedFile(userId, id);
+    const file = await this.accessibleFile(userId, id, 'edit');
     const origin = await FolderModel.findById(file.folderId);
     if (!origin || origin.isDeleted) {
       throw new NotFoundError('Carpeta de origen no encontrada');
@@ -373,6 +395,9 @@ export class FileService {
     const destination = await FolderModel.findById(destinationId);
     if (!destination || destination.isDeleted) {
       throw new NotFoundError('Carpeta destino no encontrada');
+    }
+    if (!(await this.permissions.canAccess(userId, 'folder', destination._id, 'edit'))) {
+      throw new ForbiddenError('Sin acceso a la carpeta destino');
     }
     if (destination.ownerId.toString() !== origin.ownerId.toString()) {
       throw new BadRequestError('Prohibido mover entre propietarios distintos');
@@ -392,8 +417,10 @@ export class FileService {
       resourceId: file._id,
       ownerId: file.ownerId,
     });
+    const actorUser = await UserModel.findById(userId, { email: 1 }).lean().catch(() => null);
     await ActivityLogModel.create({
       userId: new mongoose.Types.ObjectId(userId),
+      userEmail: actorUser?.email ?? null,
       action: 'MOVE',
       status: 'success',
       resourceType: 'file',
@@ -423,10 +450,12 @@ export class FileService {
           resourceId: file._id,
           ownerId: file.ownerId,
         });
+        const actorUser = await UserModel.findById(userId, { email: 1 }).lean().catch(() => null);
         await ActivityLogModel.create(
           [
             {
               userId: new mongoose.Types.ObjectId(userId),
+              userEmail: actorUser?.email ?? null,
               action: 'TRASH',
               status: 'success',
               resourceType: 'file',

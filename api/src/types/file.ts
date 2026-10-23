@@ -23,6 +23,7 @@ export interface PublicFile {
   id: string;
   ownerId: string;
   ownerEmail?: string | null;
+  permission?: 'owner' | 'edit' | 'read' | null;
   name: string;
   mimeType: string;
   category: FileCategory;

@@ -268,10 +268,12 @@ export class TrashService {
             })
           )
         );
+        const actorUser = await UserModel.findById(userId, { email: 1 }).lean().catch(() => null);
         await ActivityLogModel.create(
           [
             ...groupFolders.map((item, idx) => ({
               userId: root.ownerId,
+              userEmail: actorUser?.email ?? null,
               action: 'RESTORE',
               status: 'success',
               resourceType: 'folder',
@@ -286,6 +288,7 @@ export class TrashService {
             })),
             ...groupFiles.map((item, idx) => ({
               userId: root.ownerId,
+              userEmail: actorUser?.email ?? null,
               action: 'RESTORE',
               status: 'success',
               resourceType: 'file',
@@ -394,55 +397,58 @@ export class TrashService {
             { $set: { isDeleted: false, isDeletionRoot: false }, $unset: { deletedAt: 1, deletionId: 1 } },
             { session }
           );
-          const sfFolderAffected = await Promise.all(
-            subtreeFolders.map((sf) =>
-              computeAffectedUserIds({
-                actorId: userId,
-                resourceType: 'folder',
-                resourceId: sf._id,
-                ownerId: sf.ownerId,
-              })
-            )
-          );
-          const sfFileAffected = await Promise.all(
-            subtreeFiles.map((sf) =>
-              computeAffectedUserIds({
-                actorId: userId,
-                resourceType: 'file',
-                resourceId: sf._id,
-                ownerId: sf.ownerId,
-              })
-            )
-          );
-          await ActivityLogModel.create(
-            [
-              ...subtreeFolders.map((sf, idx) => ({
-                userId: item.ownerId,
-                action: 'RESTORE',
-                status: 'success',
-                resourceType: 'folder',
-                resourceId: sf._id,
-                resourceSnapshot: { name: sf.name },
-                details: {
-                  deletionId,
-                  previousFolderId: sf._id.equals(folder._id) ? previousParentId : sf.parentId,
-                  destinationFolderId: dest._id,
-                },
-                affectedUserIds: sfFolderAffected[idx],
-              })),
-              ...subtreeFiles.map((sf, idx) => ({
-                userId: item.ownerId,
-                action: 'RESTORE',
-                status: 'success',
-                resourceType: 'file',
-                resourceId: sf._id,
-                resourceSnapshot: { name: sf.name },
-                details: { deletionId, previousFolderId: sf.folderId, destinationFolderId: dest._id },
-                affectedUserIds: sfFileAffected[idx],
-              })),
-            ],
-            { session, ordered: true }
-          );
+        const sfFolderAffected = await Promise.all(
+          subtreeFolders.map((sf) =>
+            computeAffectedUserIds({
+              actorId: userId,
+              resourceType: 'folder',
+              resourceId: sf._id,
+              ownerId: sf.ownerId,
+            })
+          )
+        );
+        const sfFileAffected = await Promise.all(
+          subtreeFiles.map((sf) =>
+            computeAffectedUserIds({
+              actorId: userId,
+              resourceType: 'file',
+              resourceId: sf._id,
+              ownerId: sf.ownerId,
+            })
+          )
+        );
+        const actorUser = await UserModel.findById(userId, { email: 1 }).lean().catch(() => null);
+        await ActivityLogModel.create(
+          [
+            ...subtreeFolders.map((sf, idx) => ({
+              userId: item.ownerId,
+              userEmail: actorUser?.email ?? null,
+              action: 'RESTORE',
+              status: 'success',
+              resourceType: 'folder',
+              resourceId: sf._id,
+              resourceSnapshot: { name: sf.name },
+              details: {
+                deletionId,
+                previousFolderId: sf._id.equals(folder._id) ? previousParentId : sf.parentId,
+                destinationFolderId: dest._id,
+              },
+              affectedUserIds: sfFolderAffected[idx],
+            })),
+            ...subtreeFiles.map((sf, idx) => ({
+              userId: item.ownerId,
+              userEmail: actorUser?.email ?? null,
+              action: 'RESTORE',
+              status: 'success',
+              resourceType: 'file',
+              resourceId: sf._id,
+              resourceSnapshot: { name: sf.name },
+              details: { deletionId, previousFolderId: sf.folderId, destinationFolderId: dest._id },
+              affectedUserIds: sfFileAffected[idx],
+            })),
+          ],
+          { session, ordered: true }
+        );
         } else if (file) {
           const previousFolderId = file.folderId;
           file.folderId = dest._id;
@@ -458,10 +464,12 @@ export class TrashService {
             resourceId: file._id,
             ownerId: file.ownerId,
           });
+          const actorUser = await UserModel.findById(userId, { email: 1 }).lean().catch(() => null);
           await ActivityLogModel.create(
             [
               {
                 userId: item.ownerId,
+                userEmail: actorUser?.email ?? null,
                 action: 'RESTORE',
                 status: 'success',
                 resourceType: 'file',
@@ -586,10 +594,12 @@ export class TrashService {
             })
           )
         );
+        const actorUser = await UserModel.findById(userId, { email: 1 }).lean().catch(() => null);
         await ActivityLogModel.create(
           [
             ...groupFolders.map((item, idx) => ({
               userId: root.ownerId,
+              userEmail: actorUser?.email ?? null,
               action: 'DELETE_PERMANENT',
               status: 'success',
               resourceType: 'folder',
@@ -600,6 +610,7 @@ export class TrashService {
             })),
             ...groupFiles.map((item, idx) => ({
               userId: root.ownerId,
+              userEmail: actorUser?.email ?? null,
               action: 'DELETE_PERMANENT',
               status: 'success',
               resourceType: 'file',
@@ -641,8 +652,10 @@ export class TrashService {
           resourceId: file._id,
           ownerId: file.ownerId,
         }).catch(() => []);
+        const actorUser = await UserModel.findById(userId, { email: 1 }).lean().catch(() => null);
         await ActivityLogModel.create({
           userId: new mongoose.Types.ObjectId(userId),
+          userEmail: actorUser?.email ?? null,
           action: 'DELETE_PERMANENT',
           status: 'error',
           resourceType: 'file',

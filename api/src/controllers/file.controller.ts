@@ -2,9 +2,20 @@ import type { NextFunction, Request, Response } from 'express';
 import type { AuthRequest } from '../middlewares/auth';
 import { UnauthorizedError } from '../errors/http-error';
 import { FileService } from '../services/file.service';
+import { SearchService } from '../services/search.service';
 
 export class FileController {
   private readonly fileService = new FileService();
+  private readonly searchService = new SearchService();
+
+  filter = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const result = await this.searchService.filterFiles(userId(req), req.query);
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  };
 
   upload = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {

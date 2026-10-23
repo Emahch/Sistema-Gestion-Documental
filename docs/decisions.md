@@ -46,13 +46,17 @@ Esquema e índices en vivo: [erd.md](./erd.md) (generado con `npm run db:diagram
 - Subir = un archivo por petición; extensión y MIME se validan **antes** de crear el objeto GridFS para no dejar huérfanos.
 - Reserva de cuota al final de la transmisión. 413 si no cabe, sin consumir nada.
 - Editar contenido crea siempre un objeto GridFS **nuevo**; el anterior se borra tras el commit. Si la edición crece, se reserva solo el delta.
-- Renombrar conserva extensión; mover solo dentro del mismo `ownerId` y solo el dueño; duplicados -> 409.
+- Renombrar conserva extensión y lo puede hacer el dueño o un usuario con permiso `edit`; duplicados -> 409.
+- Reemplazar contenido acepta `.txt`/`.md` UTF-8 y exige que la extensión coincida con la del archivo actual; si no coincide -> 400 sin tocar la versión anterior.
+- Mover lo puede hacer el dueño o un usuario con permiso `edit`, siempre dentro del mismo `ownerId`; el destino exige permiso `edit`; duplicados -> 409.
+- `GET /api/folders/move-destinations?resourceType=&resourceId=` devuelve las carpetas del mismo propietario sobre las que el actor tiene `owner`/`edit`; al mover una carpeta excluye la propia carpeta y todo su subárbol.
 - Descarga con `Content-Disposition: attachment`. Log `DOWNLOAD` (errores con `GRIDFS_READ_FAILED`).
 
 ### Carpetas y explorador
 
 - Vista unificada carpetas+archivos con DataView lista/cuadrícula. El marcado vive en el componente reutilizable `app-drive-view` (lo usan el explorador, "Compartidos por mí", "Compartidos conmigo" y la papelera).
-- Mover excluye en UI la carpeta, su subárbol y su carpeta padre como destino; el backend igual valida ciclos.
+- Mover usa `GET /api/folders/move-destinations`, que excluye la carpeta y su subárbol; el backend igual valida ciclos.
+- En una carpeta compartida con `edit` se permite crear subcarpetas y subir archivos; las acciones de renombrar, mover y reemplazar se muestran según el permiso efectivo devuelto en cada archivo/carpeta.
 - Papelera de carpetas: `DELETE /api/folders/:id` marca `isDeleted` + `deletionId` compartido a todo el subárbol (`isDeletionRoot` solo en lo pedido directamente), un log TRASH por recurso, sin liberar cuota; bloquea la raíz y subárboles con archivos ajenos.
 
 ### Papelera
@@ -65,7 +69,7 @@ Esquema e índices en vivo: [erd.md](./erd.md) (generado con `npm run db:diagram
 - Restaurar con destino recalcula `ancestors` de la carpeta y de sus descendientes y exige destino existente, no eliminado, del mismo propietario y con permiso `edit`.
 - Antes de restaurar se valida que el nombre no esté ocupado en el destino -> 409; id inválido -> 400, ausente de la papelera -> 404, ajeno -> 403. Cada recurso restaurado genera un log `RESTORE` con `{ deletionId, previousFolderId, destinationFolderId }`.
 - La UI de papelera permite entrar en una carpeta eliminada, volver con la miga de pan y restaurar ítems sueltos eligiendo destino con un `p-select` alimentado por `FolderTreeService` (árbol de carpetas propias, sin la papelera).
-- `FolderTreeService.options({ includeRoot, skipIds, hideIds })` centraliza el árbol de destinos: `skipIds` no lista ni recorre, `hideIds` no lista pero sí recorre; lo usan mover carpeta/archivo y restaurar.
+- `FolderTreeService.options({ includeRoot, skipIds, hideIds })` centraliza el árbol de destinos: `skipIds` no lista ni recorre, `hideIds` no lista pero sí recorre; lo usa restaurar. Mover carpeta/archivo usa `GET /api/folders/move-destinations` porque también debe listar destinos accesibles por shares.
 - `DELETE /api/trash/:id` elimina definitivamente el grupo completo (`deletionId`), solo el propietario. En una transacción borra metadata de carpetas y archivos, elimina sus shares y libera la cuota de cada `file.ownerId`; después del commit borra el contenido GridFS. Los logs se conservan.
 - Cada recurso borrado genera un log `DELETE_PERMANENT`: las carpetas con `details { deletionId }` y los archivos con `{ deletionId, gridFsId, size }`. Si falla el borrado en GridFS se registra otro log con `status:"error"` y `errorCode:"GRIDFS_DELETE_FAILED"`.
 - El borrado definitivo es por grupo; en la UI solo se ofrece sobre las raíces de la papelera (con confirmación), no sobre ítems sueltos dentro de una carpeta eliminada.
@@ -78,4 +82,17 @@ Esquema e índices en vivo: [erd.md](./erd.md) (generado con `npm run db:diagram
 - Compartir, cambiar permiso y retirar son exclusivos del propietario; la carpeta raíz no se comparte.
 - `GET /api/shares/resource?resourceType&resourceId` lista los permisos directos de un recurso (solo el propietario) y alimenta el diálogo de permisos.
 - En el frontend "Compartir" se fusionó en "Administrar permisos": un solo diálogo lista permisos, añade usuarios, cambia lectura/edición y retira acceso.
-- "Compartidos por mí" agrupa por recurso (una tarjeta por carpeta/archivo con sus compartidos) y reutiliza la vista del explorador; "Compartidos conmigo" usa la misma vista, una entrada por recurso compartido (propietario y permiso en el subtítulo) y sin la opción de permisos porque el receptor no es el dueño.
+- "Compartidos por mí" agrupa por recurso (una tarjeta por carpeta/archivo con sus compartidos) y reutiliza la vista del explorador; "Compartidos conmigo" usa la misma vista, una entrada por recurso compartido (propietario y permiso en el subtítulo).
+- En "Compartidos por mí" el dueño puede abrir/descargar, renombrar, mover, reemplazar contenido (archivos), administrar permisos y enviar a la papelera. En "Compartidos conmigo" un permiso `edit` habilita renombrar, mover y reemplazar; administrar permisos y enviar a la papelera siguen reservados al propietario.
+- Eliminar (papelera) nunca lo puede hacer un receptor, ni siquiera con `edit`: la papelera, la cuota y la restauración son del propietario.
+
+
+## Búsqueda y filtros
+
+- `GET /api/search?q=&scope=own|shared|all&page=&limit=` busca de forma unificada carpetas y archivos por `nameNormalized` con regex escapado (case-insensitive). Exige `q` no vacío.
+- El alcance `shared` incluye shares directos y la herencia por `ancestors`: una carpeta compartida hace visibles sus subcarpetas y los archivos contenidos. `resolveVisibility` calcula una sola vez los ids compartidos y los reutiliza.
+- Los resultados se fusionan en Node (carpetas + archivos), se ordenan por nombre y se paginan de forma combinada.
+- Cada resultado incluye el permiso efectivo (`owner`/`edit`/`read`) para que la UI muestre solo acciones válidas.
+- `GET /api/files/filter?category=TXT|MD&from=&to=&scope=&page=&limit=` filtra solo archivos por categoría y rango de `createdAt` (extremos inclusivos), orden descendente por fecha de creación y con el mismo alcance own/shared/all.
+- `from` y `to` se interpretan como fechas ISO; la UI envía el inicio y el fin del día local seleccionado. `from > to` -> 400.
+- Los índices existentes (`ownerId,isDeleted,nameNormalized`/`parentId,isDeleted,nameNormalized` y equivalentes de archivos) cubren el prefijo de igualdad; el regex no usa índice, igual que en la búsqueda por nombre.

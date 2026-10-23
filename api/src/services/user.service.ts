@@ -100,10 +100,14 @@ export class UserService {
           ],
           { session, ordered: true }
         );
+        const actorUser = actorId
+          ? await UserModel.findById(actorId, { email: 1 }).lean().catch(() => null)
+          : created.email;
         await ActivityLogModel.create(
           [
             {
               userId: actorId || created._id,
+              userEmail: typeof actorUser === 'string' ? actorUser : (actorUser?.email ?? created.email),
               action: 'USER_CREATE',
               status: 'success',
               resourceType: 'user',
@@ -188,8 +192,12 @@ export class UserService {
     }
     target.isActive = isActive;
     await target.save();
+    const actorUser = actorId
+      ? await UserModel.findById(actorId, { email: 1 }).lean().catch(() => null)
+      : null;
     await ActivityLogModel.create({
       userId: actorId || target._id,
+      userEmail: actorUser?.email ?? null,
       action: 'USER_STATUS_CHANGE',
       status: 'success',
       resourceType: 'user',
@@ -216,8 +224,12 @@ export class UserService {
     const previous = target.storage.quotaBytes ?? null;
     target.storage.quotaBytes = quotaBytes;
     await target.save();
+    const actorUser = actorId
+      ? await UserModel.findById(actorId, { email: 1 }).lean().catch(() => null)
+      : null;
     await ActivityLogModel.create({
       userId: actorId || target._id,
+      userEmail: actorUser?.email ?? null,
       action: 'QUOTA_CHANGE',
       status: 'success',
       resourceType: 'user',

@@ -1,4 +1,5 @@
 import type { HydratedDocument, Types } from 'mongoose';
+import { mongoose } from '../config/db';
 import { FolderModel } from '../models/folder.model';
 import { FileModel } from '../models/file.model';
 import { ShareModel } from '../models/share.model';
@@ -60,6 +61,77 @@ export class PermissionService {
       }
     }
     return best;
+  }
+
+  async effectivePermissionMap(
+    userId: string,
+    resources: Array<{
+      kind: ResourceType;
+      id: string;
+      ownerId: string;
+      ancestors?: string[];
+      folderId?: string;
+    }>
+  ): Promise<Map<string, EffectivePermission>> {
+    const result = new Map<string, EffectivePermission>();
+    const uid = new mongoose.Types.ObjectId(userId);
+    const shares = await ShareModel.find({ sharedWithId: uid }).lean();
+    const shareMap = new Map<string, SharePermission>();
+    for (const share of shares) {
+      const id = share.resourceId.toString();
+      const current = shareMap.get(id);
+      if (current !== 'edit') {
+        shareMap.set(id, share.permission);
+      }
+    }
+    const fileFolderIds = [
+      ...new Set(
+        resources
+          .filter((resource) => resource.kind === 'file' && resource.folderId)
+          .map((resource) => resource.folderId as string)
+      ),
+    ];
+    const folderAncestors = new Map<string, string[]>();
+    if (fileFolderIds.length > 0) {
+      const folders = await FolderModel.find(
+        { _id: { $in: fileFolderIds.map((id) => new mongoose.Types.ObjectId(id)) } },
+        { ancestors: 1 }
+      ).lean();
+      for (const folder of folders) {
+        folderAncestors.set(
+          folder._id.toString(),
+          folder.ancestors.map((ancestor) => ancestor.toString())
+        );
+      }
+    }
+    for (const resource of resources) {
+      const key = `${resource.kind}:${resource.id}`;
+      if (resource.ownerId === userId) {
+        result.set(key, 'owner');
+        continue;
+      }
+      const candidates = [resource.id];
+      if (resource.kind === 'file' && resource.folderId) {
+        candidates.push(resource.folderId);
+        candidates.push(...(folderAncestors.get(resource.folderId) ?? []));
+      }
+      if (resource.kind === 'folder' && resource.ancestors) {
+        candidates.push(...resource.ancestors);
+      }
+      let best: 'edit' | 'read' | null = null;
+      for (const candidate of candidates) {
+        const permission = shareMap.get(candidate);
+        if (permission === 'edit') {
+          best = 'edit';
+          break;
+        }
+        if (permission === 'read') {
+          best = 'read';
+        }
+      }
+      result.set(key, best);
+    }
+    return result;
   }
 
   async canAccess(

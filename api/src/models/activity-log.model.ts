@@ -4,6 +4,7 @@ import type { ActivityLog } from '../types/activity-log';
 const activityLogSchema = new Schema<ActivityLog>(
   {
     userId: { type: Schema.Types.ObjectId, required: true },
+    userEmail: { type: String, default: null },
     action: {
       type: String,
       enum: [

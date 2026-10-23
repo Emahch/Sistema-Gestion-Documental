@@ -1,10 +1,17 @@
 import { Component, OnInit, ViewChild, computed, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { HttpEventType } from '@angular/common/http';
 import { ButtonModule } from 'primeng/button';
+import { ConfirmDialogModule } from 'primeng/confirmdialog';
+import { DialogModule } from 'primeng/dialog';
+import { InputTextModule } from 'primeng/inputtext';
 import { MenuModule } from 'primeng/menu';
 import { Menu } from 'primeng/menu';
-import { MenuItem } from 'primeng/api';
+import { SelectModule } from 'primeng/select';
+import { ProgressBarModule } from 'primeng/progressbar';
+import { MenuItem, ConfirmationService } from 'primeng/api';
+import { FormsModule } from '@angular/forms';
 import { ShareService } from '../../core/share.service';
 import { FolderService } from '../../core/folder.service';
 import { DriveView, DriveViewItem } from '../../shared/components/drive-view/drive-view';
@@ -19,13 +26,27 @@ interface SharedGroup {
   people: { email: string; permission: string }[];
 }
 
+interface ActionTarget {
+  kind: 'folder' | 'file';
+  id: string;
+  name: string;
+  canEdit: boolean;
+  isOwner: boolean;
+}
+
 @Component({
   selector: 'app-shared',
   imports: [
+    FormsModule,
     ButtonModule,
+    ConfirmDialogModule,
+    DialogModule,
     DriveView,
+    InputTextModule,
     MenuModule,
     PermissionsDialog,
+    ProgressBarModule,
+    SelectModule,
   ],
   templateUrl: './shared.html',
   styleUrl: './shared.css',
@@ -106,11 +127,33 @@ export class Shared implements OnInit {
   @ViewChild('itemMenu') private readonly itemMenu?: Menu;
   protected readonly menuItems = signal<MenuItem[]>([]);
 
+  protected readonly renameTarget = signal<ActionTarget | null>(null);
+  protected readonly showRename = signal(false);
+  protected readonly renameName = signal('');
+  protected readonly renameError = signal<string | null>(null);
+  protected readonly renaming = signal(false);
+
+  protected readonly moveTarget = signal<ActionTarget | null>(null);
+  protected readonly showMove = signal(false);
+  protected readonly destinations = signal<{ label: string; value: string }[]>([]);
+  protected readonly destinationId = signal<string>('');
+  protected readonly moveError = signal<string | null>(null);
+  protected readonly moving = signal(false);
+
+  protected readonly replaceTarget = signal<{ id: string; name: string } | null>(null);
+  protected readonly showReplace = signal(false);
+  protected readonly replaceError = signal<string | null>(null);
+  protected readonly replacing = signal(false);
+  protected readonly uploadPercent = signal(0);
+
+  protected readonly trashTarget = signal<ActionTarget | null>(null);
+
   constructor(
     private sharesApi: ShareService,
     private foldersApi: FolderService,
     private route: ActivatedRoute,
     private router: Router,
+    private confirm: ConfirmationService,
   ) {
     this.route.data.pipe(takeUntilDestroyed()).subscribe((data) => {
       this.mode.set(data['mode'] === 'by-me' ? 'by-me' : 'with-me');
@@ -146,6 +189,194 @@ export class Shared implements OnInit {
       return;
     }
     this.openWithMeItem(item);
+  }
+
+  private resolveTarget(item: DriveViewItem): ActionTarget {
+    if (this.mode() === 'by-me') {
+      const group = item.data as SharedGroup;
+      return { kind: group.kind, id: group.id, name: group.name, canEdit: true, isOwner: true };
+    }
+    const share = item.data as ShareItem;
+    const kind = share.resourceType === 'folder' ? 'folder' : 'file';
+    return {
+      kind,
+      id: share.resourceId,
+      name: share.resourceName,
+      canEdit: share.permission === 'edit',
+      isOwner: false,
+    };
+  }
+
+  protected openRenameShared(item: DriveViewItem): void {
+    const target = this.resolveTarget(item);
+    if (!target.canEdit) return;
+    this.renameTarget.set(target);
+    this.renameName.set(target.name);
+    this.renameError.set(null);
+    this.showRename.set(true);
+  }
+
+  protected saveRenameShared(): void {
+    const target = this.renameTarget();
+    const name = this.renameName().trim();
+    if (!target || !name) {
+      this.renameError.set('Ingresa un nombre.');
+      return;
+    }
+    this.renaming.set(true);
+    this.renameError.set(null);
+    if (target.kind === 'folder') {
+      this.foldersApi.rename(target.id, name).subscribe({
+        next: () => {
+          this.renaming.set(false);
+          this.showRename.set(false);
+          this.reload();
+        },
+        error: (err: { status?: number }) => {
+          this.renameError.set(err?.status === 409 ? 'Ya existe una carpeta con ese nombre.' : 'No se pudo renombrar.');
+          this.renaming.set(false);
+        },
+      });
+      return;
+    }
+    this.foldersApi.renameFile(target.id, name).subscribe({
+      next: () => {
+        this.renaming.set(false);
+        this.showRename.set(false);
+        this.reload();
+      },
+      error: (err: { status?: number }) => {
+        this.renameError.set(err?.status === 409 ? 'Ya existe un archivo con ese nombre.' : err?.status === 400 ? 'El nombre debe conservar la extensión.' : 'No se pudo renombrar.');
+        this.renaming.set(false);
+      },
+    });
+  }
+
+  protected openMoveShared(item: DriveViewItem): void {
+    const target = this.resolveTarget(item);
+    if (!target.canEdit) return;
+    this.moveTarget.set(target);
+    this.destinationId.set('');
+    this.moveError.set(null);
+    this.showMove.set(true);
+    this.foldersApi.moveDestinations(target.kind, target.id).subscribe({
+      next: (destinations) =>
+        this.destinations.set(destinations.map((destination) => ({ label: destination.label, value: destination.id }))),
+      error: () => this.moveError.set('No se pudieron cargar las carpetas destino.'),
+    });
+  }
+
+  protected saveMoveShared(): void {
+    const target = this.moveTarget();
+    const destinationId = this.destinationId();
+    if (!target || !destinationId) {
+      this.moveError.set('Elige la carpeta destino.');
+      return;
+    }
+    this.moving.set(true);
+    this.moveError.set(null);
+    if (target.kind === 'folder') {
+      this.foldersApi.move(target.id, destinationId).subscribe({
+        next: () => {
+          this.moving.set(false);
+          this.showMove.set(false);
+          this.reload();
+        },
+        error: (err: { status?: number; error?: { message?: string } }) => {
+          this.moveError.set(err?.error?.message || 'No se pudo mover la carpeta.');
+          this.moving.set(false);
+        },
+      });
+      return;
+    }
+    this.foldersApi.moveFile(target.id, destinationId).subscribe({
+      next: () => {
+        this.moving.set(false);
+        this.showMove.set(false);
+        this.reload();
+      },
+      error: (err: { status?: number; error?: { message?: string } }) => {
+        this.moveError.set(err?.error?.message || 'No se pudo mover el archivo.');
+        this.moving.set(false);
+      },
+    });
+  }
+
+  protected openReplaceShared(item: DriveViewItem): void {
+    const target = this.resolveTarget(item);
+    if (!target.canEdit || target.kind !== 'file') return;
+    this.replaceTarget.set({ id: target.id, name: target.name });
+    this.replaceError.set(null);
+    this.showReplace.set(true);
+  }
+
+  protected onReplaceSharedSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    const target = this.replaceTarget();
+    if (!file || !target) return;
+    this.replacing.set(true);
+    this.uploadPercent.set(0);
+    this.replaceError.set(null);
+    this.foldersApi.editContent(target.id, file).subscribe({
+      next: (evt) => {
+        if (evt.type === HttpEventType.UploadProgress) {
+          const total = evt.total ?? file.size;
+          this.uploadPercent.set(total ? Math.round((evt.loaded / total) * 100) : 0);
+        } else if (evt.type === HttpEventType.Response) {
+          this.replacing.set(false);
+          this.uploadPercent.set(0);
+          this.showReplace.set(false);
+          this.reload();
+        }
+      },
+      error: (err: { status?: number }) => {
+        this.replaceError.set(
+          err?.status === 413
+            ? 'El archivo excede tu cuota disponible.'
+            : err?.status === 400
+              ? 'Archivo inválido. Debe conservar la extensión y ser .txt o .md en UTF-8.'
+              : 'No se pudo reemplazar el contenido.'
+        );
+        this.replacing.set(false);
+        this.uploadPercent.set(0);
+      },
+    });
+  }
+
+  protected confirmTrashShared(item: DriveViewItem): void {
+    const target = this.resolveTarget(item);
+    if (!target.isOwner) return;
+    this.trashTarget.set(target);
+    this.confirm.confirm({
+      header: 'Enviar a la papelera',
+      message: `¿Enviar "${target.name}" a la papelera?`,
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: 'Enviar',
+      rejectLabel: 'Cancelar',
+      accept: () => this.trashShared(),
+    });
+  }
+
+  private trashShared(): void {
+    const target = this.trashTarget();
+    if (!target) return;
+    if (target.kind === 'folder') {
+      this.foldersApi.trash(target.id).subscribe({
+        next: () => this.reload(),
+        error: (err: { status?: number; error?: { message?: string } }) => {
+          this.error.set(err?.error?.message || 'No se pudo enviar la carpeta a la papelera.');
+        },
+      });
+      return;
+    }
+    this.foldersApi.trashFile(target.id).subscribe({
+      next: () => this.reload(),
+      error: (err: { status?: number; error?: { message?: string } }) => {
+        this.error.set(err?.error?.message || 'No se pudo enviar el archivo a la papelera.');
+      },
+    });
   }
 
   protected openSharedItem(item: DriveViewItem): void {
@@ -187,31 +418,43 @@ export class Shared implements OnInit {
 
   protected openItemMenu(event: MouseEvent, item: DriveViewItem): void {
     event.stopPropagation();
-    if (this.mode() === 'by-me') {
-      const group = item.data as SharedGroup;
-      this.menuItems.set([
-        {
-          label: group.kind === 'folder' ? 'Abrir' : 'Descargar',
-          icon: group.kind === 'folder' ? 'pi pi-folder-open' : 'pi pi-download',
-          command: () => this.openSharedItem(item),
-        },
-        {
-          label: 'Administrar permisos',
-          icon: 'pi pi-users',
-          command: () => this.openPermissions(group),
-        },
-      ]);
-      this.itemMenu?.toggle(event);
-      return;
-    }
-    const share = item.data as ShareItem;
-    this.menuItems.set([
+    const target = this.resolveTarget(item);
+    const isFolder = target.kind === 'folder';
+    const items: MenuItem[] = [
       {
-        label: share.resourceType === 'folder' ? 'Abrir' : 'Descargar',
-        icon: share.resourceType === 'folder' ? 'pi pi-folder-open' : 'pi pi-download',
-        command: () => this.openWithMeItem(item),
+        label: isFolder ? 'Abrir' : 'Descargar',
+        icon: isFolder ? 'pi pi-folder-open' : 'pi pi-download',
+        command: () =>
+          this.mode() === 'by-me' ? this.openSharedItem(item) : this.openWithMeItem(item),
       },
-    ]);
+    ];
+    if (target.canEdit) {
+      items.push(
+        { label: 'Renombrar', icon: 'pi pi-pencil', command: () => this.openRenameShared(item) },
+        { label: 'Mover', icon: 'pi pi-send', command: () => this.openMoveShared(item) },
+      );
+      if (!isFolder) {
+        items.push({
+          label: 'Reemplazar contenido',
+          icon: 'pi pi-file-edit',
+          command: () => this.openReplaceShared(item),
+        });
+      }
+    }
+    if (target.isOwner) {
+      items.push({
+        label: 'Administrar permisos',
+        icon: 'pi pi-users',
+        command: () => this.openPermissions(item.data as SharedGroup),
+      });
+      items.push({
+        label: 'Enviar a la papelera',
+        icon: 'pi pi-trash',
+        styleClass: 'menu-danger',
+        command: () => this.confirmTrashShared(item),
+      });
+    }
+    this.menuItems.set(items);
     this.itemMenu?.toggle(event);
   }
 

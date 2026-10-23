@@ -19,7 +19,14 @@
   </div>
 
   <div class="drive-head">
-    <div></div>
+    <div class="search-box">
+      <input pInputText type="text" [ngModel]="searchQuery()" (ngModelChange)="searchQuery.set($event)" (keyup.enter)="doSearch()" placeholder="Buscar archivos y carpetas..." />
+      <p-select [options]="searchScopes" [ngModel]="searchScope()" (ngModelChange)="searchScope.set($event)" optionLabel="label" optionValue="value" styleClass="search-scope" />
+      <p-button label="Buscar" icon="pi pi-search" (onClick)="doSearch()" [loading]="searching()" />
+      @if (searching() || filtering() || filterActive() || searchResults().length > 0 || searchQuery().trim()) {
+        <p-button label="Limpiar" icon="pi pi-times" [text]="true" (onClick)="clearSearch()" />
+      }
+    </div>
     <div class="drive-tools">
       <p-button
         [icon]="layout() === 'list' ? 'pi pi-th-large' : 'pi pi-bars'"
@@ -29,11 +36,45 @@
         ariaLabel="Alternar vista de lista y cuadrícula"
         (onClick)="layout.set(layout() === 'list' ? 'grid' : 'list')"
       />
-      <p-button label="Nueva carpeta" icon="pi pi-plus" (onClick)="openCreate()" />
-      <p-button label="Subir archivo" icon="pi pi-upload" severity="secondary" [loading]="uploading()" (onClick)="fileInput.click()" />
-      <input #fileInput type="file" accept=".txt,.md" hidden (change)="onFileSelected($event)" />
+      @if (canWriteCurrent()) {
+        <p-button label="Nueva carpeta" icon="pi pi-plus" (onClick)="openCreate()" />
+        <p-button label="Subir archivo" icon="pi pi-upload" severity="secondary" [loading]="uploading()" (onClick)="fileInput.click()" />
+        <input #fileInput type="file" accept=".txt,.md" hidden (change)="onFileSelected($event)" />
+      }
     </div>
   </div>
+
+  <div class="filter-bar">
+    <p-button
+      [label]="showFilters() ? 'Ocultar filtros' : 'Filtros'"
+      [icon]="showFilters() ? 'pi pi-filter-slash' : 'pi pi-filter'"
+      [text]="true"
+      severity="secondary"
+      (onClick)="showFilters.set(!showFilters())"
+    />
+    @if (filterActive()) {
+      <span class="filter-active">Filtros aplicados</span>
+      <p-button label="Quitar filtros" icon="pi pi-times" [text]="true" (onClick)="clearSearch()" />
+    }
+  </div>
+
+  @if (showFilters()) {
+    <div class="filter-panel">
+      <div class="filter-field">
+        <label>Tipo</label>
+        <p-select [options]="categories" [ngModel]="filterCategory()" (ngModelChange)="filterCategory.set($event)" optionLabel="label" optionValue="value" styleClass="filter-control" />
+      </div>
+      <div class="filter-field">
+        <label>Desde</label>
+        <p-datePicker [ngModel]="filterFrom()" (ngModelChange)="filterFrom.set($event)" [showIcon]="true" dateFormat="dd/mm/yy" styleClass="filter-control" />
+      </div>
+      <div class="filter-field">
+        <label>Hasta</label>
+        <p-datePicker [ngModel]="filterTo()" (ngModelChange)="filterTo.set($event)" [showIcon]="true" dateFormat="dd/mm/yy" styleClass="filter-control" />
+      </div>
+      <p-button label="Aplicar" icon="pi pi-check" (onClick)="applyFilters()" [loading]="filtering()" />
+    </div>
+  }
 
   @if (error()) {
     <div class="error-banner">{{ error() }}</div>

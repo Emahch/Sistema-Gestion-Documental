@@ -33,6 +33,7 @@
     (menu)="openItemMenu($event.event, $event.item)"
   />
   <p-menu #itemMenu [model]="menuItems()" [popup]="true" />
+  <p-confirmDialog />
 </section>
 
 <app-permissions-dialog
@@ -41,3 +42,47 @@
   [resourceId]="permTarget()?.id ?? ''"
   [resourceName]="permTarget()?.name ?? ''"
 />
+
+<p-dialog header="Renombrar" [visible]="showRename()" [modal]="true" [style]="{ width: '380px' }" (visibleChange)="showRename.set($event)">
+  <div class="dialog-form">
+    <label>Nombre</label>
+    <input pInputText [(ngModel)]="renameName" (keyup.enter)="saveRenameShared()" />
+    @if (renameError()) {
+      <small class="error">{{ renameError() }}</small>
+    }
+  </div>
+  <ng-template pTemplate="footer">
+    <p-button label="Cancelar" [text]="true" (onClick)="showRename.set(false)" />
+    <p-button label="Guardar" (onClick)="saveRenameShared()" [loading]="renaming()" />
+  </ng-template>
+</p-dialog>
+
+<p-dialog header="Mover a" [visible]="showMove()" [modal]="true" [style]="{ width: '420px' }" (visibleChange)="showMove.set($event)">
+  <div class="dialog-form">
+    <label>Carpeta destino</label>
+    <p-select [options]="destinations()" [(ngModel)]="destinationId" placeholder="Selecciona destino" styleClass="full-width" />
+    @if (moveError()) {
+      <small class="error">{{ moveError() }}</small>
+    }
+  </div>
+  <ng-template pTemplate="footer">
+    <p-button label="Cancelar" [text]="true" (onClick)="showMove.set(false)" />
+    <p-button label="Mover" (onClick)="saveMoveShared()" [loading]="moving()" />
+  </ng-template>
+</p-dialog>
+
+<p-dialog header="Reemplazar contenido" [visible]="showReplace()" [modal]="true" [style]="{ width: '420px' }" (visibleChange)="showReplace.set($event)">
+  <div class="dialog-form">
+    <p class="text">Selecciona un archivo .txt o .md (UTF-8). Debe conservar la extensión.</p>
+    <input type="file" accept=".txt,.md" (change)="onReplaceSharedSelected($event)" [disabled]="replacing()" />
+    @if (replacing()) {
+      <p-progressBar [value]="uploadPercent()" />
+    }
+    @if (replaceError()) {
+      <small class="error">{{ replaceError() }}</small>
+    }
+  </div>
+  <ng-template pTemplate="footer">
+    <p-button label="Cerrar" [text]="true" (onClick)="showReplace.set(false)" [disabled]="replacing()" />
+  </ng-template>
+</p-dialog>

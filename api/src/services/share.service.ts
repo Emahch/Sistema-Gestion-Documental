@@ -149,8 +149,10 @@ export class ShareService {
           resourceId: doc._id,
           ownerId: doc.ownerId,
         });
+        const actorUser = await UserModel.findById(ownerId, { email: 1 }).lean().catch(() => null);
         await ActivityLogModel.create({
           userId: new mongoose.Types.ObjectId(ownerId),
+          userEmail: actorUser?.email ?? null,
           action: 'SHARE',
           status: 'success',
           resourceType: resourceType === 'folder' ? 'folder' : 'file',
@@ -205,8 +207,10 @@ export class ShareService {
       resourceId: share.resourceId,
       ownerId: share.ownerId,
     });
+    const actorUser = await UserModel.findById(ownerId, { email: 1 }).lean().catch(() => null);
     await ActivityLogModel.create({
       userId: new mongoose.Types.ObjectId(ownerId),
+      userEmail: actorUser?.email ?? null,
       action: 'PERMISSION_CHANGE',
       status: 'success',
       resourceType: share.resourceType === 'folder' ? 'folder' : 'file',
@@ -246,8 +250,10 @@ export class ShareService {
       resourceId: share.resourceId,
       ownerId: share.ownerId,
     });
+    const actorUser = await UserModel.findById(ownerId, { email: 1 }).lean().catch(() => null);
     await ActivityLogModel.create({
       userId: new mongoose.Types.ObjectId(ownerId),
+      userEmail: actorUser?.email ?? null,
       action: 'UNSHARE',
       status: 'success',
       resourceType: share.resourceType === 'folder' ? 'folder' : 'file',

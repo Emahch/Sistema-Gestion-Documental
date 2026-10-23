@@ -59,10 +59,28 @@ export class ActivityService {
 
     if (!isAdmin) {
       const resource = await this.permissions.findResource(resourceType, resourceId);
-      if (!resource) {
-        throw new NotFoundError('Recurso no encontrado');
+      let isOwner = false;
+      if (resource) {
+        isOwner = resource.doc.ownerId.toString() === userId;
       }
-      const isOwner = resource.doc.ownerId.toString() === userId;
+      if (!isOwner) {
+        const anyLog = await ActivityLogModel.findOne({ resourceType, resourceId: rid }, { userId: 1, resourceSnapshot: 1 }).lean();
+        if (anyLog) {
+          const logUserObj = anyLog.userId as unknown;
+          const logUser =
+            logUserObj && typeof logUserObj === 'object' && '_id' in (logUserObj as Record<string, unknown>)
+              ? String((logUserObj as { _id: Types.ObjectId })._id)
+              : String(logUserObj);
+          if (logUser === userId) {
+            isOwner = true;
+          } else {
+            const snap = anyLog.resourceSnapshot as Record<string, unknown> | undefined;
+            if (snap?.['ownerId'] && String(snap['ownerId']) === userId) {
+              isOwner = true;
+            }
+          }
+        }
+      }
       if (!isOwner) {
         throw new ForbiddenError('Sin acceso al historial');
       }
@@ -81,33 +99,52 @@ export class ActivityService {
         .sort({ timestamp: -1 })
         .skip((page - 1) * limit)
         .limit(limit)
-        .populate('userId', 'email')
         .lean(),
       ActivityLogModel.countDocuments(filter),
     ]);
 
-    const items = await Promise.all(
-      data.map(async (item) => {
-        let user = item.userId as unknown as { _id?: Types.ObjectId; email?: string } | null;
-        if (!user || !user.email) {
-          const uid = typeof item.userId === 'object' && item.userId && '_id' in item.userId ? (item.userId as { _id: Types.ObjectId })._id : item.userId;
-          const u = await UserModel.findById(uid, { email: 1 }).lean();
-          user = u ? ({ _id: u._id, email: u.email } as { _id?: Types.ObjectId; email?: string }) : user;
-        }
-        return {
-          id: item._id.toString(),
-          userId: user?._id ? user._id.toString() : String(item.userId),
-          userEmail: user?.email ?? null,
-          action: item.action,
-          status: item.status,
-          resourceType: item.resourceType,
-          resourceId: item.resourceId.toString(),
-          resourceSnapshot: item.resourceSnapshot ?? {},
-          details: item.details ?? {},
-          timestamp: item.timestamp,
-        };
-      })
+    const userIds = Array.from(
+      new Set(
+        data
+          .map((item) => {
+            if (item.userEmail) return null;
+            const uid = item.userId as unknown;
+            if (uid && typeof uid === 'object' && '_id' in (uid as Record<string, unknown>)) {
+              return String((uid as { _id: Types.ObjectId })._id);
+            }
+            return String(uid);
+          })
+          .filter(Boolean) as string[]
+      )
     );
+    const userMap = new Map<string, string>();
+    if (userIds.length > 0) {
+      const users = await UserModel.find({ _id: { $in: userIds.map((id) => new mongoose.Types.ObjectId(id)) } }, { email: 1 }).lean();
+      for (const u of users) {
+        userMap.set(String(u._id), u.email);
+      }
+    }
+
+    const items = data.map((item) => {
+      const uidObj = item.userId as unknown;
+      const uid =
+        uidObj && typeof uidObj === 'object' && '_id' in (uidObj as Record<string, unknown>)
+          ? String((uidObj as { _id: Types.ObjectId })._id)
+          : String(uidObj);
+      const email = item.userEmail || userMap.get(uid) || null;
+      return {
+        id: item._id.toString(),
+        userId: uid,
+        userEmail: email,
+        action: item.action,
+        status: item.status,
+        resourceType: item.resourceType,
+        resourceId: item.resourceId.toString(),
+        resourceSnapshot: item.resourceSnapshot ?? {},
+        details: item.details ?? {},
+        timestamp: item.timestamp,
+      };
+    });
 
     return { data: items, total, page, limit };
   }
@@ -120,9 +157,11 @@ export class ActivityService {
     const to = toDate(query.to);
 
     const filter: Record<string, unknown> = {
-      affectedUserIds: uid,
       status: 'success',
       userId: { $ne: uid },
+      $or: [
+        { affectedUserIds: uid },
+      ],
     };
     if (from || to) {
       const ts: Record<string, unknown> = {};
@@ -136,31 +175,50 @@ export class ActivityService {
         .sort({ timestamp: -1 })
         .skip((page - 1) * limit)
         .limit(limit)
-        .populate('userId', 'email')
         .lean(),
       ActivityLogModel.countDocuments(filter),
     ]);
 
-    const items = await Promise.all(
-      data.map(async (item) => {
-        let user = item.userId as unknown as { _id?: Types.ObjectId; email?: string } | null;
-        if (!user || !user.email) {
-          const uid = typeof item.userId === 'object' && item.userId && '_id' in item.userId ? (item.userId as { _id: Types.ObjectId })._id : item.userId;
-          const u = await UserModel.findById(uid, { email: 1 }).lean();
-          user = u ? ({ _id: u._id, email: u.email } as { _id?: Types.ObjectId; email?: string }) : user;
-        }
-        return {
-          id: item._id.toString(),
-          actorId: user?._id ? user._id.toString() : String(item.userId),
-          actorEmail: user?.email ?? null,
-          action: item.action,
-          resourceType: item.resourceType,
-          resourceId: item.resourceId.toString(),
-          resourceSnapshot: item.resourceSnapshot ?? {},
-          timestamp: item.timestamp,
-        };
-      })
+    const userIds = Array.from(
+      new Set(
+        data
+          .map((item) => {
+            if (item.userEmail) return null;
+            const uid = item.userId as unknown;
+            if (uid && typeof uid === 'object' && '_id' in (uid as Record<string, unknown>)) {
+              return String((uid as { _id: Types.ObjectId })._id);
+            }
+            return String(uid);
+          })
+          .filter(Boolean) as string[]
+      )
     );
+    const userMap = new Map<string, string>();
+    if (userIds.length > 0) {
+      const users = await UserModel.find({ _id: { $in: userIds.map((id) => new mongoose.Types.ObjectId(id)) } }, { email: 1 }).lean();
+      for (const u of users) {
+        userMap.set(String(u._id), u.email);
+      }
+    }
+
+    const items = data.map((item) => {
+      const uidObj = item.userId as unknown;
+      const uid =
+        uidObj && typeof uidObj === 'object' && '_id' in (uidObj as Record<string, unknown>)
+          ? String((uidObj as { _id: Types.ObjectId })._id)
+          : String(uidObj);
+      const email = item.userEmail || userMap.get(uid) || null;
+      return {
+        id: item._id.toString(),
+        actorId: uid,
+        actorEmail: email,
+        action: item.action,
+        resourceType: item.resourceType,
+        resourceId: item.resourceId.toString(),
+        resourceSnapshot: item.resourceSnapshot ?? {},
+        timestamp: item.timestamp,
+      };
+    });
 
     return { data: items, total, page, limit };
   }

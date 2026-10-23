@@ -300,6 +300,46 @@ router.patch('/:id/move', auth, controller.move);
  *           application/json:
  *             schema: { $ref: '#/components/schemas/Error' }
  */
+/**
+ * @openapi
+ * /api/folders/move-destinations:
+ *   get:
+ *     summary: Lista carpetas destino accesibles para mover un recurso
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: resourceType
+ *         required: true
+ *         schema: { type: string, enum: [file, folder] }
+ *       - in: query
+ *         name: resourceId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Carpetas destino (mismo propietario y con permiso de edición)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id: { type: string }
+ *                   name: { type: string }
+ *                   label: { type: string }
+ *       400:
+ *         description: Parámetros inválidos
+ *       401:
+ *         description: Sin token o inactivo
+ *       403:
+ *         description: Sin permiso de edición
+ *       404:
+ *         description: Recurso no encontrado
+ */
+router.get('/move-destinations', auth, controller.moveDestinations);
+
 router.get('/:id/breadcrumb', auth, controller.breadcrumb);
 
 /**

@@ -52,6 +52,19 @@ export class FolderController {
     }
   };
 
+  moveDestinations = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const destinations = await this.folderService.moveDestinations(
+        userId(req),
+        req.query.resourceType,
+        req.query.resourceId
+      );
+      res.json(destinations);
+    } catch (err) {
+      next(err);
+    }
+  };
+
   breadcrumb = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const chain = await this.folderService.breadcrumb(userId(req), routeParam(req));

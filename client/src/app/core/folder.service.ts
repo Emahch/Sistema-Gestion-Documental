@@ -31,6 +31,16 @@ export class FolderService {
     return this.http.get<DriveFolder[]>(`${this.baseUrl}/folders/${id}/breadcrumb`);
   }
 
+  moveDestinations(
+    resourceType: 'file' | 'folder',
+    resourceId: string,
+  ): Observable<{ id: string; name: string; label: string }[]> {
+    return this.http.get<{ id: string; name: string; label: string }[]>(
+      `${this.baseUrl}/folders/move-destinations`,
+      { params: { resourceType, resourceId } },
+    );
+  }
+
   create(parentId: string, name: string): Observable<DriveFolder> {
     return this.http.post<DriveFolder>(`${this.baseUrl}/folders`, { parentId, name });
   }

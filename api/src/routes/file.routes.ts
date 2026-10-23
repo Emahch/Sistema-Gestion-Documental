@@ -79,6 +79,44 @@ router.post('/', auth, controller.upload);
 
 /**
  * @openapi
+ * /api/files/filter:
+ *   get:
+ *     summary: Filtra archivos por tipo, fecha y alcance
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: category
+ *         schema: { type: string, enum: [TXT, MD] }
+ *       - in: query
+ *         name: from
+ *         schema: { type: string, format: date-time }
+ *         description: Fecha mínima de creación
+ *       - in: query
+ *         name: to
+ *         schema: { type: string, format: date-time }
+ *         description: Fecha máxima de creación
+ *       - in: query
+ *         name: scope
+ *         schema: { type: string, enum: [own, shared, all], default: all }
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, default: 1 }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, default: 50 }
+ *     responses:
+ *       200:
+ *         description: Archivos ordenados por fecha de creación descendente
+ *       400:
+ *         description: Filtros inválidos
+ *       401:
+ *         description: Sin token o inactivo
+ */
+router.get('/filter', auth, controller.filter);
+
+/**
+ * @openapi
  * /api/files/{id}:
  *   get:
  *     summary: Metadatos de un archivo

@@ -7,14 +7,15 @@ import { ButtonModule } from 'primeng/button';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
+import { DatePickerModule } from 'primeng/datepicker';
 import { MenuModule } from 'primeng/menu';
 import { Menu } from 'primeng/menu';
 import { SelectModule } from 'primeng/select';
 import { ProgressBarModule } from 'primeng/progressbar';
 import { MenuItem, ConfirmationService } from 'primeng/api';
 import { FolderService } from '../../core/folder.service';
-import { FolderTreeService } from '../../core/folder-tree.service';
 import { AuthService } from '../../core/auth.service';
+import { SearchService } from '../../core/search.service';
 import {
   DriveView,
   DriveViewAction,
@@ -30,6 +31,7 @@ import { formatBytes } from '../../shared/format';
     FormsModule,
     ButtonModule,
     ConfirmDialogModule,
+    DatePickerModule,
     DialogModule,
     DriveView,
     InputTextModule,
@@ -51,27 +53,60 @@ export class Drive implements OnInit {
   protected readonly error = signal<string | null>(null);
   protected readonly layout = signal<'list' | 'grid'>('grid');
 
-  protected readonly items = computed<DriveViewItem[]>(() => [
-    ...this.folders().map((folder) => ({
-      id: folder.id,
-      kind: 'folder' as const,
-      name: folder.name,
-      updatedAt: folder.updatedAt,
-      meta: this.ownerLabel(folder.ownerEmail, folder.ownerId),
-      data: folder,
-    })),
-    ...this.files().map((file) => ({
-      id: file.id,
-      kind: 'file' as const,
-      name: file.name,
-      updatedAt: file.updatedAt,
-      meta: [this.ownerLabel(file.ownerEmail, file.ownerId), formatBytes(file.size)]
-        .filter(Boolean)
-        .join(' · '),
-      tag: file.mimeType || '—',
-      data: file,
-    })),
-  ]);
+  protected readonly searchQuery = signal('');
+  protected readonly searchScope = signal<'own' | 'shared' | 'all'>('all');
+  protected readonly searching = signal(false);
+  protected readonly searchResults = signal<DriveViewItem[]>([]);
+  protected readonly inSearch = signal(false);
+  protected readonly searchScopes = [
+    { label: 'Todo', value: 'all' },
+    { label: 'Propios', value: 'own' },
+    { label: 'Compartidos', value: 'shared' },
+  ];
+
+  protected readonly showFilters = signal(false);
+  protected readonly filterCategory = signal<'TXT' | 'MD' | ''>('');
+  protected readonly filterFrom = signal<Date | null>(null);
+  protected readonly filterTo = signal<Date | null>(null);
+  protected readonly filtering = signal(false);
+  protected readonly filterActive = signal(false);
+  protected readonly categories = [
+    { label: 'Todos', value: '' },
+    { label: 'TXT', value: 'TXT' },
+    { label: 'MD', value: 'MD' },
+  ];
+
+  protected readonly canWriteCurrent = computed(() => {
+    const folder = this.currentFolder();
+    return !folder || folder.permission === 'owner' || folder.permission === 'edit';
+  });
+
+  protected readonly items = computed<DriveViewItem[]>(() => {
+    if (this.inSearch()) {
+      return this.searchResults();
+    }
+    return [
+      ...this.folders().map((folder) => ({
+        id: folder.id,
+        kind: 'folder' as const,
+        name: folder.name,
+        updatedAt: folder.updatedAt,
+        meta: this.ownerLabel(folder.ownerEmail, folder.ownerId),
+        data: folder,
+      })),
+      ...this.files().map((file) => ({
+        id: file.id,
+        kind: 'file' as const,
+        name: file.name,
+        updatedAt: file.updatedAt,
+        meta: [this.ownerLabel(file.ownerEmail, file.ownerId), formatBytes(file.size)]
+          .filter(Boolean)
+          .join(' · '),
+        tag: file.mimeType || '—',
+        data: file,
+      })),
+    ];
+  });
 
   private ownerLabel(email?: string | null, ownerId?: string): string | undefined {
     if (email) {
@@ -132,21 +167,145 @@ export class Drive implements OnInit {
   );
 
   constructor(
-    private foldersApi: FolderService,
-    private folderTree: FolderTreeService,
-    private auth: AuthService,
-    private route: ActivatedRoute,
-    private router: Router,
+    private readonly foldersApi: FolderService,
+    private readonly auth: AuthService,
+    private readonly route: ActivatedRoute,
+    private readonly router: Router,
     private confirm: ConfirmationService,
+    private readonly searchApi: SearchService,
   ) {
     this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {
-      this.currentId.set(params.get('folderId'));
+      const folderId = params.get('folderId');
+      if (this.inSearch() && folderId !== undefined) {
+        this.clearSearch();
+      }
+      this.currentId.set(folderId);
       this.reload();
     });
   }
 
   ngOnInit(): void {
     this.reload();
+  }
+
+  protected doSearch(): void {
+    const q = this.searchQuery().trim();
+    if (!q) {
+      this.clearSearch();
+      return;
+    }
+    this.searching.set(true);
+    this.filtering.set(false);
+    this.filterActive.set(false);
+    this.inSearch.set(true);
+    this.searchApi.search(q, this.searchScope()).subscribe({
+      next: (res) => {
+        this.searchResults.set((res.data || []).map((item) => this.mapResult(item)));
+        this.searching.set(false);
+      },
+      error: () => {
+        this.searchResults.set([]);
+        this.searching.set(false);
+      },
+    });
+  }
+
+  protected applyFilters(): void {
+    if (!this.filterCategory() && !this.filterFrom() && !this.filterTo()) {
+      this.clearSearch();
+      return;
+    }
+    this.filtering.set(true);
+    this.searching.set(false);
+    this.filterActive.set(true);
+    this.inSearch.set(true);
+    this.searchApi
+      .filter(
+        {
+          category: this.filterCategory() || null,
+          from: this.filterFrom() ? this.startOfDay(this.filterFrom() as Date) : null,
+          to: this.filterTo() ? this.endOfDay(this.filterTo() as Date) : null,
+        },
+        this.searchScope(),
+      )
+      .subscribe({
+        next: (res) => {
+          this.searchResults.set((res.data || []).map((item) => this.mapResult(item)));
+          this.filtering.set(false);
+        },
+        error: () => {
+          this.searchResults.set([]);
+          this.filtering.set(false);
+        },
+      });
+  }
+
+  protected clearSearch(): void {
+    this.searchQuery.set('');
+    this.searchResults.set([]);
+    this.inSearch.set(false);
+    this.searching.set(false);
+    this.filtering.set(false);
+    this.filterActive.set(false);
+    this.filterCategory.set('');
+    this.filterFrom.set(null);
+    this.filterTo.set(null);
+  }
+
+  private mapResult(item: import('../../core/search.service').SearchResultItem): DriveViewItem {
+    const isOwner = item.ownerId === this.auth.currentUser()?.id;
+    if (item.kind === 'folder') {
+      return {
+        id: item.id,
+        kind: 'folder',
+        name: item.name,
+        updatedAt: item.updatedAt,
+        meta: isOwner ? 'propietario' : undefined,
+        data: {
+          id: item.id,
+          name: item.name,
+          ownerId: item.ownerId,
+          permission: item.permission,
+          parentId: item.parentId,
+          isRoot: item.isRoot,
+          ancestors: [],
+          createdAt: item.updatedAt,
+          updatedAt: item.updatedAt,
+        } as DriveFolder,
+      };
+    }
+    return {
+      id: item.id,
+      kind: 'file',
+      name: item.name,
+      updatedAt: item.updatedAt,
+      meta: [isOwner ? 'propietario' : undefined, formatBytes(item.size || 0)].filter(Boolean).join(' · '),
+      tag: item.mimeType || item.category || '—',
+      data: {
+        id: item.id,
+        name: item.name,
+        mimeType: item.mimeType,
+        category: item.category,
+        size: item.size || 0,
+        folderId: item.folderId,
+        ownerId: item.ownerId,
+        permission: item.permission,
+        createdAt: item.updatedAt,
+        updatedAt: item.updatedAt,
+      } as DriveFile,
+    };
+  }
+
+  private startOfDay(date: Date): string {
+    const copy = new Date(date);
+    copy.setHours(0, 0, 0, 0);
+    return copy.toISOString();
+  }
+
+  private endOfDay(date: Date): string {
+    const copy = new Date(date);
+    copy.setHours(23, 59, 59, 999);
+    return copy.toISOString();
   }
 
   protected openFolder(id: string | null): void {
@@ -252,17 +411,18 @@ export class Drive implements OnInit {
     });
   }
 
-  protected async openMove(folder: DriveFolder): Promise<void> {
+  protected openMove(folder: DriveFolder): void {
     this.moveTarget.set(folder);
     this.destinationId.set('');
     this.moveError.set(null);
     this.showMove.set(true);
-    this.destinations.set(
-      await this.folderTree.options({
-        skipIds: [folder.id],
-        hideIds: this.currentId() ? [this.currentId() as string] : [],
-      }),
-    );
+    this.foldersApi.moveDestinations('folder', folder.id).subscribe({
+      next: (destinations) =>
+        this.destinations.set(destinations.map((destination) => ({ label: destination.label, value: destination.id }))),
+      error: () => {
+        this.moveError.set('No se pudieron cargar las carpetas destino.');
+      },
+    });
   }
 
   protected saveMove(): void {
@@ -358,9 +518,11 @@ export class Drive implements OnInit {
       const actions: DriveViewAction[] = [
         { id: 'open', icon: 'pi pi-folder-open', label: 'Abrir carpeta', severity: 'secondary' },
         { id: 'history', icon: 'pi pi-history', label: 'Historial', severity: 'secondary' },
-        { id: 'rename', icon: 'pi pi-pencil', label: 'Renombrar carpeta', severity: 'secondary' },
-        { id: 'move', icon: 'pi pi-send', label: 'Mover carpeta', severity: 'secondary' },
       ];
+      if (this.canEdit(folder)) {
+        actions.push({ id: 'rename', icon: 'pi pi-pencil', label: 'Renombrar carpeta', severity: 'secondary' });
+        actions.push({ id: 'move', icon: 'pi pi-send', label: 'Mover carpeta', severity: 'secondary' });
+      }
       if (this.isOwner(folder.ownerId) && !folder.isRoot) {
         actions.push({ id: 'permissions', icon: 'pi pi-users', label: 'Administrar permisos', severity: 'secondary' });
         actions.push({ id: 'trash', icon: 'pi pi-trash', label: 'Enviar a la papelera', severity: 'danger' });
@@ -371,10 +533,12 @@ export class Drive implements OnInit {
     const actions: DriveViewAction[] = [
       { id: 'download', icon: 'pi pi-download', label: 'Descargar archivo', severity: 'secondary' },
       { id: 'history', icon: 'pi pi-history', label: 'Historial', severity: 'secondary' },
-      { id: 'rename', icon: 'pi pi-pencil', label: 'Renombrar archivo', severity: 'secondary' },
-      { id: 'move', icon: 'pi pi-send', label: 'Mover archivo', severity: 'secondary' },
-      { id: 'replace', icon: 'pi pi-file-edit', label: 'Reemplazar contenido', severity: 'secondary' },
     ];
+    if (this.canEdit(file)) {
+      actions.push({ id: 'rename', icon: 'pi pi-pencil', label: 'Renombrar archivo', severity: 'secondary' });
+      actions.push({ id: 'move', icon: 'pi pi-send', label: 'Mover archivo', severity: 'secondary' });
+      actions.push({ id: 'replace', icon: 'pi pi-file-edit', label: 'Reemplazar contenido', severity: 'secondary' });
+    }
     if (this.isOwner(file.ownerId)) {
       actions.push({ id: 'permissions', icon: 'pi pi-users', label: 'Administrar permisos', severity: 'secondary' });
       actions.push({ id: 'trash', icon: 'pi pi-trash', label: 'Enviar a la papelera', severity: 'danger' });
@@ -382,8 +546,13 @@ export class Drive implements OnInit {
     return actions;
   };
 
+  private canEdit(resource: DriveFile | DriveFolder): boolean {
+    return resource.permission === 'owner' || resource.permission === 'edit' || this.isOwner(resource.ownerId);
+  }
+
   protected activateItem(item: DriveViewItem): void {
     if (item.kind === 'folder') {
+      this.clearSearch();
       this.openFolder(item.id);
       return;
     }
@@ -394,7 +563,11 @@ export class Drive implements OnInit {
     const { item, actionId } = event;
     if (item.kind === 'folder') {
       const folder = item.data as DriveFolder;
-      if (actionId === 'rename') {
+      if (actionId === 'open') {
+        this.activateItem(item);
+      } else if (actionId === 'history') {
+        this.openHistory(item);
+      } else if (actionId === 'rename') {
         this.openRename(folder);
       } else if (actionId === 'move') {
         this.openMove(folder);
@@ -406,7 +579,9 @@ export class Drive implements OnInit {
       return;
     }
     const file = item.data as DriveFile;
-    if (actionId === 'rename') {
+    if (actionId === 'history') {
+      this.openHistory(item);
+    } else if (actionId === 'rename') {
       this.openRenameFile(file);
     } else if (actionId === 'move') {
       this.openMoveFile(file);
@@ -435,9 +610,13 @@ export class Drive implements OnInit {
     const items: MenuItem[] = [
       { label: 'Abrir', icon: 'pi pi-folder-open', command: () => this.openFolder(folder.id) },
       { label: 'Historial', icon: 'pi pi-history', command: () => this.router.navigate(['/activity'], { queryParams: { resourceType: 'folder', resourceId: folder.id } }) },
-      { label: 'Renombrar', icon: 'pi pi-pencil', command: () => this.openRename(folder) },
-      { label: 'Mover', icon: 'pi pi-send', command: () => this.openMove(folder) },
     ];
+    if (this.canEdit(folder)) {
+      items.push(
+        { label: 'Renombrar', icon: 'pi pi-pencil', command: () => this.openRename(folder) },
+        { label: 'Mover', icon: 'pi pi-send', command: () => this.openMove(folder) },
+      );
+    }
     if (this.isOwner(folder.ownerId) && !folder.isRoot) {
       items.push({
         label: 'Administrar permisos',
@@ -460,10 +639,14 @@ export class Drive implements OnInit {
     const items: MenuItem[] = [
       { label: 'Descargar', icon: 'pi pi-download', command: () => this.downloadById(file) },
       { label: 'Historial', icon: 'pi pi-history', command: () => this.router.navigate(['/activity'], { queryParams: { resourceType: 'file', resourceId: file.id } }) },
-      { label: 'Renombrar', icon: 'pi pi-pencil', command: () => this.openRenameFile(file) },
-      { label: 'Mover', icon: 'pi pi-send', command: () => this.openMoveFile(file) },
-      { label: 'Reemplazar contenido', icon: 'pi pi-file-edit', command: () => this.openReplace(file) },
     ];
+    if (this.canEdit(file)) {
+      items.push(
+        { label: 'Renombrar', icon: 'pi pi-pencil', command: () => this.openRenameFile(file) },
+        { label: 'Mover', icon: 'pi pi-send', command: () => this.openMoveFile(file) },
+        { label: 'Reemplazar contenido', icon: 'pi pi-file-edit', command: () => this.openReplace(file) },
+      );
+    }
     if (this.isOwner(file.ownerId)) {
       items.push({
         label: 'Administrar permisos',
@@ -597,12 +780,18 @@ export class Drive implements OnInit {
     });
   }
 
-  protected async openMoveFile(file: DriveFile): Promise<void> {
+  protected openMoveFile(file: DriveFile): void {
     this.moveFileTarget.set(file);
     this.destinationId.set('');
     this.moveError.set(null);
     this.showMoveFile.set(true);
-    this.destinations.set(await this.folderTree.options());
+    this.foldersApi.moveDestinations('file', file.id).subscribe({
+      next: (destinations) =>
+        this.destinations.set(destinations.map((destination) => ({ label: destination.label, value: destination.id }))),
+      error: () => {
+        this.moveError.set('No se pudieron cargar las carpetas destino.');
+      },
+    });
   }
 
   protected saveMoveFile(): void {

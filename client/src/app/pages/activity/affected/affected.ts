@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, NgZone, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { TableModule } from 'primeng/table';
@@ -16,6 +16,7 @@ import type { ActivityAffectedItem } from '../../../models/activity.model';
 export class ActivityAffected implements OnInit {
   private readonly activity = inject(ActivityService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly zone = inject(NgZone);
 
   items: ActivityAffectedItem[] = [];
   total = 0;
@@ -27,26 +28,38 @@ export class ActivityAffected implements OnInit {
     this.page = 1;
     this.items = [];
     this.total = 0;
-    this.loading = true;
-    this.cdr.detectChanges();
+    this.zone.run(() => {
+      this.loading = true;
+      this.cdr.markForCheck();
+      this.cdr.detectChanges();
+    });
     this.load();
   }
 
   load(): void {
-    this.loading = true;
-    this.cdr.detectChanges();
+    this.zone.run(() => {
+      this.loading = true;
+      this.cdr.markForCheck();
+      this.cdr.detectChanges();
+    });
     this.activity.affected({ page: this.page, limit: this.limit }).subscribe({
       next: (res) => {
-        this.items = res.data || [];
-        this.total = res.total || 0;
-        this.loading = false;
-        this.cdr.detectChanges();
+        this.zone.run(() => {
+          this.items = res.data || [];
+          this.total = res.total || 0;
+          this.loading = false;
+          this.cdr.markForCheck();
+          this.cdr.detectChanges();
+        });
       },
       error: () => {
-        this.items = [];
-        this.total = 0;
-        this.loading = false;
-        this.cdr.detectChanges();
+        this.zone.run(() => {
+          this.items = [];
+          this.total = 0;
+          this.loading = false;
+          this.cdr.markForCheck();
+          this.cdr.detectChanges();
+        });
       },
     });
   }

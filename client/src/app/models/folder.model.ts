@@ -2,6 +2,7 @@ export interface DriveFolder {
   id: string;
   ownerId: string;
   ownerEmail?: string | null;
+  permission?: 'owner' | 'edit' | 'read' | null;
   createdBy?: string | null;
   parentId: string | null;
   isRoot: boolean;
@@ -15,6 +16,7 @@ export interface DriveFile {
   id: string;
   ownerId: string;
   ownerEmail?: string | null;
+  permission?: 'owner' | 'edit' | 'read' | null;
   name: string;
   mimeType: string;
   category: string;

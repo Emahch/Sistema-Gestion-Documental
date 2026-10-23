@@ -21,6 +21,7 @@ export interface PublicFolder {
   ownerId: string;
   ownerEmail?: string | null;
   createdBy?: string | null;
+  permission?: 'owner' | 'edit' | 'read' | null;
   parentId: string | null;
   isRoot: boolean;
   name: string;

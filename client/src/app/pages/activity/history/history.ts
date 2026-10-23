@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, NgZone, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { TableModule } from 'primeng/table';
@@ -19,6 +19,7 @@ export class ActivityHistory implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly zone = inject(NgZone);
 
   resourceType: 'file' | 'folder' | null = null;
   resourceId: string | null = null;
@@ -51,29 +52,41 @@ export class ActivityHistory implements OnInit {
       this.cdr.detectChanges();
     };
     apply(this.route.snapshot.queryParams);
-    this.route.queryParams.subscribe((params) => apply(params));
+    this.route.queryParams.subscribe((params) => this.zone.run(() => apply(params)));
   }
 
   load(): void {
     if (!this.resourceType || !this.resourceId) {
-      this.loading = false;
-      this.cdr.detectChanges();
+      this.zone.run(() => {
+        this.loading = false;
+        this.cdr.markForCheck();
+        this.cdr.detectChanges();
+      });
       return;
     }
-    this.loading = true;
-    this.cdr.detectChanges();
+    this.zone.run(() => {
+      this.loading = true;
+      this.cdr.markForCheck();
+      this.cdr.detectChanges();
+    });
     this.activity.resourceHistory(this.resourceType, this.resourceId, { page: this.page, limit: this.limit }).subscribe({
       next: (res) => {
-        this.items = res.data || [];
-        this.total = res.total || 0;
-        this.loading = false;
-        this.cdr.detectChanges();
+        this.zone.run(() => {
+          this.items = res.data || [];
+          this.total = res.total || 0;
+          this.loading = false;
+          this.cdr.markForCheck();
+          this.cdr.detectChanges();
+        });
       },
       error: () => {
-        this.items = [];
-        this.total = 0;
-        this.loading = false;
-        this.cdr.detectChanges();
+        this.zone.run(() => {
+          this.items = [];
+          this.total = 0;
+          this.loading = false;
+          this.cdr.markForCheck();
+          this.cdr.detectChanges();
+        });
       },
     });
   }
