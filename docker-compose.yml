@@ -4,7 +4,7 @@ services:
     container_name: sgd-mongo
     restart: unless-stopped
     # Mongo exige keyFile con auth + replica set: se genera una vez y persiste en volumen.
-    entrypoint: ["bash", "-c", "if [ ! -f /etc/mongo-key/keyfile ]; then mkdir -p /etc/mongo-key && openssl rand -base64 756 > /etc/mongo-key/keyfile && chmod 400 /etc/mongo-key/keyfile && chown mongodb:mongodb /etc/mongo-key/keyfile; fi; exec docker-entrypoint.sh mongod --replSet ${MONGO_REPLICA_SET:-rs0} --keyFile /etc/mongo-key/keyfile --bind_ip_all"]
+    entrypoint: [ "bash", "-c", "if [ ! -f /etc/mongo-key/keyfile ]; then mkdir -p /etc/mongo-key && openssl rand -base64 756 > /etc/mongo-key/keyfile && chmod 400 /etc/mongo-key/keyfile && chown mongodb:mongodb /etc/mongo-key/keyfile; fi; exec docker-entrypoint.sh mongod --replSet ${MONGO_REPLICA_SET:-rs0} --keyFile /etc/mongo-key/keyfile --bind_ip_all" ]
     env_file:
       - .env
     environment:
@@ -17,7 +17,7 @@ services:
       - mongo-data:/data/db
       - mongo-key:/etc/mongo-key
     healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "-u", "${MONGO_ROOT_USER:-admin}", "-p", "${MONGO_ROOT_PASSWORD:-admin123}", "--eval", "db.adminCommand('ping')"]
+      test: [ "CMD", "mongosh", "--quiet", "-u", "${MONGO_ROOT_USER:-admin}", "-p", "${MONGO_ROOT_PASSWORD:-admin123}", "--eval", "db.adminCommand('ping')" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -30,7 +30,7 @@ services:
         condition: service_healthy
     env_file:
       - .env
-    entrypoint: ["bash", "-c"]
+    entrypoint: [ "bash", "-c" ]
     command:
       - |
         URI="mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-admin123}@mongo:27017/admin";
@@ -70,7 +70,7 @@ services:
       mongo-init:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health" ]
       interval: 15s
       timeout: 5s
       retries: 3

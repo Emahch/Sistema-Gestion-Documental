@@ -464,14 +464,15 @@ export class FolderService {
         chain.push(ancestor);
       }
     }
+    const permissionTargets = [...chain, folder].map((item) => ({
+      kind: 'folder' as const,
+      id: item._id.toString(),
+      ownerId: item.ownerId.toString(),
+      ancestors: item.ancestors.map((ancestorId) => ancestorId.toString()),
+    }));
     const permissions = await this.permissions.effectivePermissionMap(
       userId,
-      chain.map((item) => ({
-        kind: 'folder' as const,
-        id: item._id.toString(),
-        ownerId: item.ownerId.toString(),
-        ancestors: item.ancestors.map((ancestorId) => ancestorId.toString()),
-      }))
+      permissionTargets
     );
     return [...chain, folder].map((item) =>
       toPublicFolder(item, undefined, permissions.get(`folder:${item._id.toString()}`) ?? null)
