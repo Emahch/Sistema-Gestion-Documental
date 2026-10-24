@@ -1,0 +1,1508 @@
+<mxfile host="app.diagrams.net" pages="10">
+  <diagram name="0. Resumen" id="VU27woL-xq0DdnfY0AJI">
+    <mxGraphModel dx="1414" dy="831" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1670" pageHeight="800" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="n2" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=24;fontColor=#222222;" value="&lt;b&gt;Modelo documental — Sistema de Gestión Documental&lt;/b&gt;" vertex="1">
+          <mxGeometry height="36" width="1500" x="40" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="n3" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=13;fontColor=#666666;" value="MongoDB 7 (replica set de un nodo, rs0) + GridFS · Octubre 2026" vertex="1">
+          <mxGeometry height="24" width="1500" x="40" y="58" as="geometry" />
+        </mxCell>
+        <mxCell id="n4" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=13;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;Propósito&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="740" x="40" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="n5" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=12;fillColor=#ffffff;strokeColor=#888888;" value="Este documento describe cómo se modela la información en MongoDB: colecciones, documentos embebidos, referencias entre colecciones e índices.&lt;br&gt;Cada página es un diagrama o tabla independiente. El diseño parte de los &lt;b&gt;patrones de acceso&lt;/b&gt; de la aplicación (archivos y carpetas, permisos, papelera, usuarios, actividad y reportes) y no al revés.&lt;br&gt;El esquema vivo con los índices reales se encuentra en &lt;font face=&quot;Courier New&quot;&gt;docs/erd.md&lt;/font&gt;." vertex="1">
+          <mxGeometry height="103" width="740" x="40" y="128" as="geometry" />
+        </mxCell>
+        <mxCell id="n6" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=13;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;Convenciones del modelo&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="740" x="40" y="251" as="geometry" />
+        </mxCell>
+        <mxCell id="n7" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=12;fillColor=#ffffff;strokeColor=#888888;" value="• Las consultas normales de archivos y carpetas llevan &lt;font face=&quot;Courier New&quot;&gt;isDeleted: false&lt;/font&gt; (borrado lógico).&lt;br&gt;• El permiso efectivo se calcula en el servidor con un chequeo centralizado (propietario &amp;gt; share directo &amp;gt; heredado por &lt;font face=&quot;Courier New&quot;&gt;ancestors&lt;/font&gt;); el id del usuario sale del &lt;font face=&quot;Courier New&quot;&gt;sub&lt;/font&gt; del JWT.&lt;br&gt;• &lt;font face=&quot;Courier New&quot;&gt;name&lt;/font&gt; guarda el nombre mostrado y &lt;font face=&quot;Courier New&quot;&gt;nameNormalized&lt;/font&gt; se usa para búsquedas y unicidad (sin mayúsculas ni diacríticos).&lt;br&gt;• &lt;font face=&quot;Courier New&quot;&gt;files.category&lt;/font&gt; solo admite &lt;font face=&quot;Courier New&quot;&gt;TXT&lt;/font&gt; o &lt;font face=&quot;Courier New&quot;&gt;MD&lt;/font&gt;; el contenido es UTF-8 y se guarda en GridFS.&lt;br&gt;• La cuota por usuario es configurable y puede ser ilimitada (&lt;font face=&quot;Courier New&quot;&gt;quotaBytes: null&lt;/font&gt;).&lt;br&gt;• Los identificadores se comparan como ObjectId; los emails no se usan como clave porque son mutables.&lt;br&gt;• MongoDB no impone integridad referencial: las referencias se validan en los servicios y dentro de transacciones." vertex="1">
+          <mxGeometry height="190" width="740" x="40" y="279" as="geometry" />
+        </mxCell>
+        <mxCell id="n8" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=13;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;Cómo leer las páginas&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="740" x="40" y="489" as="geometry" />
+        </mxCell>
+        <mxCell id="n9" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=12;fillColor=#ffffff;strokeColor=#888888;" value="&lt;b&gt;1. Colecciones y relaciones&lt;/b&gt; — diagrama entidad-relación con todos los campos.&lt;br&gt;&lt;b&gt;2. Embebidos vs referencias&lt;/b&gt; — qué se embebe, qué se referencia y por qué.&lt;br&gt;&lt;b&gt;3. Referencias&lt;/b&gt; — tabla de cada campo que apunta a otra colección.&lt;br&gt;&lt;b&gt;4. Índices&lt;/b&gt; — todos los índices, sus opciones y la consulta que atienden.&lt;br&gt;&lt;b&gt;5. Jerarquía y herencia&lt;/b&gt; — &lt;font face=&quot;Courier New&quot;&gt;parentId&lt;/font&gt;, &lt;font face=&quot;Courier New&quot;&gt;ancestors&lt;/font&gt; y permisos heredados.&lt;br&gt;&lt;b&gt;6. activity_logs&lt;/b&gt; — estructura, catálogo de acciones y &lt;font face=&quot;Courier New&quot;&gt;affectedUserIds&lt;/font&gt;.&lt;br&gt;&lt;b&gt;7. GridFS&lt;/b&gt; — almacenamiento del contenido y consistencia con la metadata.&lt;br&gt;&lt;b&gt;8. Ejemplos&lt;/b&gt; — documentos de muestra de cada colección.&lt;br&gt;9. MongoDB en el proyecto — funcionalidades usadas y reglas de los reportes." vertex="1">
+          <mxGeometry height="172" width="740" x="40" y="517" as="geometry" />
+        </mxCell>
+        <mxCell id="n10" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;" value="&lt;b&gt;Colección&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="140" x="820" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="n11" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;" value="&lt;b&gt;Propósito&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="330" x="960" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="n12" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;" value="&lt;b&gt;Embebidos&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="160" x="1290" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="n13" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;" value="&lt;b&gt;Referencias a&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="160" x="1450" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="n14" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;" value="&lt;font face=&quot;Courier New&quot;&gt;users&lt;/font&gt;" vertex="1">
+          <mxGeometry height="44" width="140" x="820" y="128" as="geometry" />
+        </mxCell>
+        <mxCell id="n15" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;" value="Cuentas, rol, estado activo y cuota de almacenamiento" vertex="1">
+          <mxGeometry height="44" width="330" x="960" y="128" as="geometry" />
+        </mxCell>
+        <mxCell id="n16" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;" value="&lt;font face=&quot;Courier New&quot;&gt;storage&lt;/font&gt; {quotaBytes, usedBytes}" vertex="1">
+          <mxGeometry height="44" width="160" x="1290" y="128" as="geometry" />
+        </mxCell>
+        <mxCell id="n17" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;" value="—" vertex="1">
+          <mxGeometry height="44" width="160" x="1450" y="128" as="geometry" />
+        </mxCell>
+        <mxCell id="n18" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;" value="&lt;font face=&quot;Courier New&quot;&gt;folders&lt;/font&gt;" vertex="1">
+          <mxGeometry height="44" width="140" x="820" y="172" as="geometry" />
+        </mxCell>
+        <mxCell id="n19" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;" value="Árbol de carpetas por usuario (una raíz por usuario)" vertex="1">
+          <mxGeometry height="44" width="330" x="960" y="172" as="geometry" />
+        </mxCell>
+        <mxCell id="n20" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;" value="—" vertex="1">
+          <mxGeometry height="44" width="160" x="1290" y="172" as="geometry" />
+        </mxCell>
+        <mxCell id="n21" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;" value="users, folders" vertex="1">
+          <mxGeometry height="44" width="160" x="1450" y="172" as="geometry" />
+        </mxCell>
+        <mxCell id="n22" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;" value="&lt;font face=&quot;Courier New&quot;&gt;files&lt;/font&gt;" vertex="1">
+          <mxGeometry height="44" width="140" x="820" y="216" as="geometry" />
+        </mxCell>
+        <mxCell id="n23" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;" value="Metadatos de archivos &lt;font face=&quot;Courier New&quot;&gt;.txt&lt;/font&gt; / &lt;font face=&quot;Courier New&quot;&gt;.md&lt;/font&gt;" vertex="1">
+          <mxGeometry height="44" width="330" x="960" y="216" as="geometry" />
+        </mxCell>
+        <mxCell id="n24" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;" value="—" vertex="1">
+          <mxGeometry height="44" width="160" x="1290" y="216" as="geometry" />
+        </mxCell>
+        <mxCell id="n25" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;" value="users, folders, fs.files" vertex="1">
+          <mxGeometry height="44" width="160" x="1450" y="216" as="geometry" />
+        </mxCell>
+        <mxCell id="n26" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;" value="&lt;font face=&quot;Courier New&quot;&gt;shares&lt;/font&gt;" vertex="1">
+          <mxGeometry height="44" width="140" x="820" y="260" as="geometry" />
+        </mxCell>
+        <mxCell id="n27" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;" value="Un documento por recurso y usuario con permiso directo" vertex="1">
+          <mxGeometry height="44" width="330" x="960" y="260" as="geometry" />
+        </mxCell>
+        <mxCell id="n28" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;" value="—" vertex="1">
+          <mxGeometry height="44" width="160" x="1290" y="260" as="geometry" />
+        </mxCell>
+        <mxCell id="n29" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;" value="users, files/folders" vertex="1">
+          <mxGeometry height="44" width="160" x="1450" y="260" as="geometry" />
+        </mxCell>
+        <mxCell id="n30" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;" value="&lt;font face=&quot;Courier New&quot;&gt;activity_logs&lt;/font&gt;" vertex="1">
+          <mxGeometry height="44" width="140" x="820" y="304" as="geometry" />
+        </mxCell>
+        <mxCell id="n31" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;" value="Auditoría de operaciones (éxito y error)" vertex="1">
+          <mxGeometry height="44" width="330" x="960" y="304" as="geometry" />
+        </mxCell>
+        <mxCell id="n32" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;" value="&lt;font face=&quot;Courier New&quot;&gt;resourceSnapshot&lt;/font&gt;, &lt;font face=&quot;Courier New&quot;&gt;details&lt;/font&gt;" vertex="1">
+          <mxGeometry height="44" width="160" x="1290" y="304" as="geometry" />
+        </mxCell>
+        <mxCell id="n33" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;" value="users, recursos (lógica)" vertex="1">
+          <mxGeometry height="44" width="160" x="1450" y="304" as="geometry" />
+        </mxCell>
+        <mxCell id="n34" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;" value="&lt;font face=&quot;Courier New&quot;&gt;fs.files&lt;/font&gt; / &lt;font face=&quot;Courier New&quot;&gt;fs.chunks&lt;/font&gt;" vertex="1">
+          <mxGeometry height="44" width="140" x="820" y="348" as="geometry" />
+        </mxCell>
+        <mxCell id="n35" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;" value="Contenido de los archivos (GridFS)" vertex="1">
+          <mxGeometry height="44" width="330" x="960" y="348" as="geometry" />
+        </mxCell>
+        <mxCell id="n36" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;" value="—" vertex="1">
+          <mxGeometry height="44" width="160" x="1290" y="348" as="geometry" />
+        </mxCell>
+        <mxCell id="n37" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;" value="fs.chunks → fs.files" vertex="1">
+          <mxGeometry height="44" width="160" x="1450" y="348" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="1. Colecciones y relaciones" id="cpySfXx74PX7yVq4Wr3Q">
+    <mxGraphModel dx="2049" dy="1204" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1840" pageHeight="1188" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="n2" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=24;fontColor=#222222;" value="&lt;b&gt;Colecciones y relaciones&lt;/b&gt;" vertex="1">
+          <mxGeometry height="36" width="1500" x="30" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="n4" parent="1" style="swimlane;fontStyle=0;startSize=28;html=1;whiteSpace=wrap;fontSize=12;collapsible=0;swimlaneFillColor=#ffffff;fontFamily=Helvetica;" value="&lt;span&gt;folders&lt;/span&gt;" vertex="1">
+          <mxGeometry height="288" width="360" x="140" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="n5" parent="n4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="&lt;span&gt;_id : ObjectId  [PK]&lt;/span&gt;" vertex="1">
+          <mxGeometry height="20" width="360" y="28" as="geometry" />
+        </mxCell>
+        <mxCell id="n6" parent="n4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="ownerId : ObjectId  → users" vertex="1">
+          <mxGeometry height="20" width="360" y="48" as="geometry" />
+        </mxCell>
+        <mxCell id="n7" parent="n4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="createdBy : ObjectId  → users" vertex="1">
+          <mxGeometry height="20" width="360" y="68" as="geometry" />
+        </mxCell>
+        <mxCell id="n8" parent="n4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="parentId : ObjectId | null  → folders" vertex="1">
+          <mxGeometry height="20" width="360" y="88" as="geometry" />
+        </mxCell>
+        <mxCell id="n9" parent="n4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="isRoot : boolean" vertex="1">
+          <mxGeometry height="20" width="360" y="108" as="geometry" />
+        </mxCell>
+        <mxCell id="n10" parent="n4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="name : string" vertex="1">
+          <mxGeometry height="20" width="360" y="128" as="geometry" />
+        </mxCell>
+        <mxCell id="n11" parent="n4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="nameNormalized : string" vertex="1">
+          <mxGeometry height="20" width="360" y="148" as="geometry" />
+        </mxCell>
+        <mxCell id="n12" parent="n4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="ancestors : ObjectId[]  → folders" vertex="1">
+          <mxGeometry height="20" width="360" y="168" as="geometry" />
+        </mxCell>
+        <mxCell id="n13" parent="n4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="isDeleted : boolean" vertex="1">
+          <mxGeometry height="20" width="360" y="188" as="geometry" />
+        </mxCell>
+        <mxCell id="n14" parent="n4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="deletedAt : Date | null" vertex="1">
+          <mxGeometry height="20" width="360" y="208" as="geometry" />
+        </mxCell>
+        <mxCell id="n15" parent="n4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="deletionId : ObjectId | null" vertex="1">
+          <mxGeometry height="20" width="360" y="228" as="geometry" />
+        </mxCell>
+        <mxCell id="n16" parent="n4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="isDeletionRoot : boolean" vertex="1">
+          <mxGeometry height="20" width="360" y="248" as="geometry" />
+        </mxCell>
+        <mxCell id="n17" parent="n4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="createdAt / updatedAt : Date" vertex="1">
+          <mxGeometry height="20" width="360" y="268" as="geometry" />
+        </mxCell>
+        <mxCell id="n18" parent="1" style="swimlane;fontStyle=0;startSize=28;html=1;whiteSpace=wrap;fontSize=12;collapsible=0;swimlaneFillColor=#ffffff;fontFamily=Helvetica;" value="&lt;span&gt;files&lt;/span&gt;" vertex="1">
+          <mxGeometry height="308" width="360" x="880" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="n19" parent="n18" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="&lt;span&gt;_id : ObjectId  [PK]&lt;/span&gt;" vertex="1">
+          <mxGeometry height="20" width="360" y="28" as="geometry" />
+        </mxCell>
+        <mxCell id="n20" parent="n18" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="ownerId : ObjectId  → users" vertex="1">
+          <mxGeometry height="20" width="360" y="48" as="geometry" />
+        </mxCell>
+        <mxCell id="n21" parent="n18" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="folderId : ObjectId  → folders" vertex="1">
+          <mxGeometry height="20" width="360" y="68" as="geometry" />
+        </mxCell>
+        <mxCell id="n22" parent="n18" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="name : string" vertex="1">
+          <mxGeometry height="20" width="360" y="88" as="geometry" />
+        </mxCell>
+        <mxCell id="n23" parent="n18" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="nameNormalized : string" vertex="1">
+          <mxGeometry height="20" width="360" y="108" as="geometry" />
+        </mxCell>
+        <mxCell id="n24" parent="n18" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="mimeType : string" vertex="1">
+          <mxGeometry height="20" width="360" y="128" as="geometry" />
+        </mxCell>
+        <mxCell id="n25" parent="n18" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="category : &quot;TXT&quot; | &quot;MD&quot;" vertex="1">
+          <mxGeometry height="20" width="360" y="148" as="geometry" />
+        </mxCell>
+        <mxCell id="n26" parent="n18" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="size : number (bytes)" vertex="1">
+          <mxGeometry height="20" width="360" y="168" as="geometry" />
+        </mxCell>
+        <mxCell id="n27" parent="n18" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="gridFsId : ObjectId  → fs.files" vertex="1">
+          <mxGeometry height="20" width="360" y="188" as="geometry" />
+        </mxCell>
+        <mxCell id="n28" parent="n18" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="isDeleted : boolean" vertex="1">
+          <mxGeometry height="20" width="360" y="208" as="geometry" />
+        </mxCell>
+        <mxCell id="n29" parent="n18" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="deletedAt : Date | null" vertex="1">
+          <mxGeometry height="20" width="360" y="228" as="geometry" />
+        </mxCell>
+        <mxCell id="n30" parent="n18" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="deletionId : ObjectId | null" vertex="1">
+          <mxGeometry height="20" width="360" y="248" as="geometry" />
+        </mxCell>
+        <mxCell id="n31" parent="n18" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="isDeletionRoot : boolean" vertex="1">
+          <mxGeometry height="20" width="360" y="268" as="geometry" />
+        </mxCell>
+        <mxCell id="n32" parent="n18" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="createdAt / updatedAt : Date" vertex="1">
+          <mxGeometry height="20" width="360" y="288" as="geometry" />
+        </mxCell>
+        <mxCell id="n33" parent="1" style="swimlane;fontStyle=0;startSize=28;html=1;whiteSpace=wrap;fontSize=12;collapsible=0;swimlaneFillColor=#ffffff;fontFamily=Helvetica;" value="&lt;span&gt;fs.files  (GridFS)&lt;/span&gt;" vertex="1">
+          <mxGeometry height="128" width="280" x="1500" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="n34" parent="n33" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="&lt;span&gt;_id : ObjectId  [PK]&lt;/span&gt;" vertex="1">
+          <mxGeometry height="20" width="280" y="28" as="geometry" />
+        </mxCell>
+        <mxCell id="n35" parent="n33" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="length : number" vertex="1">
+          <mxGeometry height="20" width="280" y="48" as="geometry" />
+        </mxCell>
+        <mxCell id="n36" parent="n33" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="chunkSize : number" vertex="1">
+          <mxGeometry height="20" width="280" y="68" as="geometry" />
+        </mxCell>
+        <mxCell id="n37" parent="n33" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="uploadDate : Date" vertex="1">
+          <mxGeometry height="20" width="280" y="88" as="geometry" />
+        </mxCell>
+        <mxCell id="n38" parent="n33" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="filename : string" vertex="1">
+          <mxGeometry height="20" width="280" y="108" as="geometry" />
+        </mxCell>
+        <mxCell id="n39" parent="1" style="swimlane;fontStyle=0;startSize=28;html=1;whiteSpace=wrap;fontSize=12;collapsible=0;swimlaneFillColor=#ffffff;fontFamily=Helvetica;" value="&lt;span&gt;fs.chunks  (GridFS)&lt;/span&gt;" vertex="1">
+          <mxGeometry height="108" width="280" x="1500" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="n40" parent="n39" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="&lt;span&gt;_id : ObjectId  [PK]&lt;/span&gt;" vertex="1">
+          <mxGeometry height="20" width="280" y="28" as="geometry" />
+        </mxCell>
+        <mxCell id="n41" parent="n39" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="files_id : ObjectId  → fs.files" vertex="1">
+          <mxGeometry height="20" width="280" y="48" as="geometry" />
+        </mxCell>
+        <mxCell id="n42" parent="n39" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="n : number" vertex="1">
+          <mxGeometry height="20" width="280" y="68" as="geometry" />
+        </mxCell>
+        <mxCell id="n43" parent="n39" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="data : BinData" vertex="1">
+          <mxGeometry height="20" width="280" y="88" as="geometry" />
+        </mxCell>
+        <mxCell id="n44" parent="1" style="swimlane;fontStyle=0;startSize=28;html=1;whiteSpace=wrap;fontSize=12;collapsible=0;swimlaneFillColor=#ffffff;fontFamily=Helvetica;" value="&lt;span&gt;users&lt;/span&gt;" vertex="1">
+          <mxGeometry height="228" width="340" x="480" y="540" as="geometry" />
+        </mxCell>
+        <mxCell id="n45" parent="n44" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="&lt;span&gt;_id : ObjectId  [PK]&lt;/span&gt;" vertex="1">
+          <mxGeometry height="20" width="340" y="28" as="geometry" />
+        </mxCell>
+        <mxCell id="n46" parent="n44" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="email : string" vertex="1">
+          <mxGeometry height="20" width="340" y="48" as="geometry" />
+        </mxCell>
+        <mxCell id="n47" parent="n44" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="emailNormalized : string  (único)" vertex="1">
+          <mxGeometry height="20" width="340" y="68" as="geometry" />
+        </mxCell>
+        <mxCell id="n48" parent="n44" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="passwordHash : string  (bcrypt)" vertex="1">
+          <mxGeometry height="20" width="340" y="88" as="geometry" />
+        </mxCell>
+        <mxCell id="n49" parent="n44" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="role : string  (admin | user)" vertex="1">
+          <mxGeometry height="20" width="340" y="108" as="geometry" />
+        </mxCell>
+        <mxCell id="n50" parent="n44" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="isActive : boolean" vertex="1">
+          <mxGeometry height="20" width="340" y="128" as="geometry" />
+        </mxCell>
+        <mxCell id="n51" parent="n44" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="&lt;span&gt;storage : { }   — embebido&lt;/span&gt;" vertex="1">
+          <mxGeometry height="20" width="340" y="148" as="geometry" />
+        </mxCell>
+        <mxCell id="n52" parent="n44" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;quotaBytes : number | null" vertex="1">
+          <mxGeometry height="20" width="340" y="168" as="geometry" />
+        </mxCell>
+        <mxCell id="n53" parent="n44" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;usedBytes : number" vertex="1">
+          <mxGeometry height="20" width="340" y="188" as="geometry" />
+        </mxCell>
+        <mxCell id="n54" parent="n44" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="createdAt / updatedAt : Date" vertex="1">
+          <mxGeometry height="20" width="340" y="208" as="geometry" />
+        </mxCell>
+        <mxCell id="n55" parent="1" style="swimlane;fontStyle=0;startSize=28;html=1;whiteSpace=wrap;fontSize=12;collapsible=0;swimlaneFillColor=#ffffff;fontFamily=Helvetica;" value="&lt;span&gt;shares&lt;/span&gt;" vertex="1">
+          <mxGeometry height="188" width="340" x="480" y="940" as="geometry" />
+        </mxCell>
+        <mxCell id="n56" parent="n55" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="&lt;span&gt;_id : ObjectId  [PK]&lt;/span&gt;" vertex="1">
+          <mxGeometry height="20" width="340" y="28" as="geometry" />
+        </mxCell>
+        <mxCell id="n57" parent="n55" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="resourceId : ObjectId  → files | folders" vertex="1">
+          <mxGeometry height="20" width="340" y="48" as="geometry" />
+        </mxCell>
+        <mxCell id="n58" parent="n55" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="resourceType : &quot;file&quot; | &quot;folder&quot;  (informativo)" vertex="1">
+          <mxGeometry height="20" width="340" y="68" as="geometry" />
+        </mxCell>
+        <mxCell id="n59" parent="n55" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="ownerId : ObjectId  → users" vertex="1">
+          <mxGeometry height="20" width="340" y="88" as="geometry" />
+        </mxCell>
+        <mxCell id="n60" parent="n55" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="sharedWithId : ObjectId  → users" vertex="1">
+          <mxGeometry height="20" width="340" y="108" as="geometry" />
+        </mxCell>
+        <mxCell id="n61" parent="n55" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="permission : &quot;read&quot; | &quot;edit&quot;" vertex="1">
+          <mxGeometry height="20" width="340" y="128" as="geometry" />
+        </mxCell>
+        <mxCell id="n62" parent="n55" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="origin : &quot;manual&quot; | &quot;auto&quot;" vertex="1">
+          <mxGeometry height="20" width="340" y="148" as="geometry" />
+        </mxCell>
+        <mxCell id="n63" parent="n55" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="createdAt : Date" vertex="1">
+          <mxGeometry height="20" width="340" y="168" as="geometry" />
+        </mxCell>
+        <mxCell id="n64" parent="1" style="swimlane;fontStyle=0;startSize=28;html=1;whiteSpace=wrap;fontSize=12;collapsible=0;swimlaneFillColor=#ffffff;fontFamily=Helvetica;" value="&lt;span&gt;activity_logs&lt;/span&gt;" vertex="1">
+          <mxGeometry height="268" width="380" x="1100" y="540" as="geometry" />
+        </mxCell>
+        <mxCell id="n65" parent="n64" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="&lt;span&gt;_id : ObjectId  [PK]&lt;/span&gt;" vertex="1">
+          <mxGeometry height="20" width="380" y="28" as="geometry" />
+        </mxCell>
+        <mxCell id="n66" parent="n64" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="userId : ObjectId  → users" vertex="1">
+          <mxGeometry height="20" width="380" y="48" as="geometry" />
+        </mxCell>
+        <mxCell id="n67" parent="n64" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="action : string  (catálogo cerrado)" vertex="1">
+          <mxGeometry height="20" width="380" y="68" as="geometry" />
+        </mxCell>
+        <mxCell id="n68" parent="n64" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="status : &quot;success&quot; | &quot;error&quot;" vertex="1">
+          <mxGeometry height="20" width="380" y="88" as="geometry" />
+        </mxCell>
+        <mxCell id="n69" parent="n64" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="resourceType : &quot;file&quot; | &quot;folder&quot; | &quot;user&quot;" vertex="1">
+          <mxGeometry height="20" width="380" y="108" as="geometry" />
+        </mxCell>
+        <mxCell id="n70" parent="n64" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="resourceId : ObjectId  (referencia lógica)" vertex="1">
+          <mxGeometry height="20" width="380" y="128" as="geometry" />
+        </mxCell>
+        <mxCell id="n71" parent="n64" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="&lt;span&gt;resourceSnapshot : { }   — embebido&lt;/span&gt;" vertex="1">
+          <mxGeometry height="20" width="380" y="148" as="geometry" />
+        </mxCell>
+        <mxCell id="n72" parent="n64" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;name : string" vertex="1">
+          <mxGeometry height="20" width="380" y="168" as="geometry" />
+        </mxCell>
+        <mxCell id="n73" parent="n64" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;ownerId : ObjectId" vertex="1">
+          <mxGeometry height="20" width="380" y="188" as="geometry" />
+        </mxCell>
+        <mxCell id="n74" parent="n64" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="&lt;span&gt;details : { }   — embebido (según acción)&lt;/span&gt;" vertex="1">
+          <mxGeometry height="20" width="380" y="208" as="geometry" />
+        </mxCell>
+        <mxCell id="n75" parent="n64" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="affectedUserIds : ObjectId[]  → users" vertex="1">
+          <mxGeometry height="20" width="380" y="228" as="geometry" />
+        </mxCell>
+        <mxCell id="n76" parent="n64" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="timestamp : Date" vertex="1">
+          <mxGeometry height="20" width="380" y="248" as="geometry" />
+        </mxCell>
+        <mxCell id="n77" edge="1" parent="1" source="n4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;fontSize=12;labelBackgroundColor=#ffffff;exitX=0.8;exitY=1;entryX=0.25;entryY=0;fontFamily=Helvetica;fontStyle=0" target="n44" value="ownerId / createdBy  (N:1)">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="428" y="480" />
+              <mxPoint x="565" y="480" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n78" edge="1" parent="1" source="n18" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;fontSize=12;labelBackgroundColor=#ffffff;exitX=0.8;exitY=1;entryX=0.75;entryY=0;fontFamily=Helvetica;fontStyle=0" target="n44" value="ownerId  (N:1)">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1168" y="500" />
+              <mxPoint x="735" y="500" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n79" edge="1" parent="1" source="n18" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;fontSize=12;labelBackgroundColor=#ffffff;exitX=0;exitY=0.3;entryX=1;entryY=0.32;fontFamily=Helvetica;fontStyle=0" target="n4" value="folderId  (N:1)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n80" edge="1" parent="1" source="n4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;fontSize=12;labelBackgroundColor=#ffffff;exitX=0;exitY=0.2;entryX=0;entryY=0.5;fontFamily=Helvetica;fontStyle=0" target="n4" value="parentId">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="96" y="168" />
+              <mxPoint x="96" y="254" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n81" edge="1" parent="1" source="n18" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;fontSize=12;labelBackgroundColor=#ffffff;exitX=1;exitY=0.15;entryX=0;entryY=0.36;fontFamily=Helvetica;fontStyle=0" target="n33" value="gridFsId  (1:1)">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1270" y="156" />
+              <mxPoint x="1270" y="156" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n82" edge="1" parent="1" source="n39" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;fontSize=12;labelBackgroundColor=#ffffff;exitX=0.5;exitY=0;entryX=0.5;entryY=1;fontFamily=Helvetica;fontStyle=0" target="n33" value="files_id  (N:1)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n83" edge="1" parent="1" source="n55" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;fontSize=12;labelBackgroundColor=#ffffff;exitX=0.5;exitY=0;entryX=0.5;entryY=1;fontFamily=Helvetica;fontStyle=0" target="n44" value="ownerId / sharedWithId  (N:1)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n84" edge="1" parent="1" source="n55" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;fontSize=12;labelBackgroundColor=#ffffff;dashed=1;exitX=0;exitY=0.5;entryX=0.1;entryY=1;fontFamily=Helvetica;fontStyle=0" target="n4" value="resourceId  (si es carpeta)">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="176" y="1034" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n85" edge="1" parent="1" source="n55" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;fontSize=12;labelBackgroundColor=#ffffff;dashed=1;exitX=1;exitY=0.5;entryX=0.1;entryY=1;fontFamily=Helvetica;fontStyle=0" target="n18" value="resourceId  (si es archivo)">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="916" y="1034" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n86" edge="1" parent="1" source="n64" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;fontSize=12;labelBackgroundColor=#ffffff;exitX=0;exitY=0.5;entryX=1;entryY=0.588;fontFamily=Helvetica;fontStyle=0" target="n44" value="userId / affectedUserIds[]">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n93" parent="1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=12;fontFamily=Helvetica;fontStyle=0" value="Los documentos de activity_logs conservan resourceSnapshot porque el recurso puede ser eliminado definitivamente; el historial no se borra." vertex="1">
+          <mxGeometry height="54" width="380" x="1100" y="820" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="2. Embebidos vs referencias" id="YaMhuv7-OzjVhdOk2CF3">
+    <mxGraphModel grid="1" page="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" pageScale="1" pageWidth="1620" pageHeight="800" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="n2" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=24;fontColor=#222222;" value="&lt;b&gt;Documentos embebidos y referencias&lt;/b&gt;" vertex="1">
+          <mxGeometry height="36" width="1500" x="40" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="n4" parent="1" style="text;html=1;align=left;fontSize=15;fontColor=#D9650B;" value="&lt;b&gt;EMBEBIDOS&lt;/b&gt;" vertex="1">
+          <mxGeometry height="26" width="700" x="40" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="n5" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=13;fillColor=#D9650B;strokeColor=#D9650B;fontColor=#ffffff;" value="&lt;b&gt;users.storage&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="700" x="40" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="n6" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=12;fillColor=#ffffff;strokeColor=#D9650B;" value="{ quotaBytes: number | null,  usedBytes: number }&lt;br&gt;• Grupo pequeño de tamaño acotado que se lee siempre junto al usuario.&lt;br&gt;• &lt;font face=&quot;Courier New&quot;&gt;quotaBytes: null&lt;/font&gt; significa cuota ilimitada; &lt;font face=&quot;Courier New&quot;&gt;usedBytes&lt;/font&gt; se contabiliza igualmente.&lt;br&gt;• La reserva de cuota es &lt;b&gt;atómica&lt;/b&gt;: un solo &lt;font face=&quot;Courier New&quot;&gt;updateOne&lt;/font&gt; condicionado sobre un único documento. Se hace al terminar la transmisión, para no consumir espacio si la subida falla.&lt;br&gt;• Se usa al subir y editar archivos, al crear usuarios, al ajustar la cuota y al eliminar definitivamente." vertex="1">
+          <mxGeometry height="138" width="700" x="40" y="158" as="geometry" />
+        </mxCell>
+        <mxCell id="n7" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=13;fillColor=#D9650B;strokeColor=#D9650B;fontColor=#ffffff;" value="&lt;b&gt;activity_logs.resourceSnapshot&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="700" x="40" y="314" as="geometry" />
+        </mxCell>
+        <mxCell id="n8" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=12;fillColor=#ffffff;strokeColor=#D9650B;" value="{ name: string, ownerId: ObjectId }&lt;br&gt;• Fotografía histórica del recurso en el momento de la acción; &lt;b&gt;no&lt;/b&gt; se sincroniza después.&lt;br&gt;• Permite mostrar el nombre y resolver el propietario aunque el recurso se elimine definitivamente. Los reportes históricos usan esta copia." vertex="1">
+          <mxGeometry height="86" width="700" x="40" y="342" as="geometry" />
+        </mxCell>
+        <mxCell id="n9" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=13;fillColor=#D9650B;strokeColor=#D9650B;fontColor=#ffffff;" value="&lt;b&gt;activity_logs.details&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="700" x="40" y="446" as="geometry" />
+        </mxCell>
+        <mxCell id="n10" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=12;fillColor=#ffffff;strokeColor=#D9650B;" value="Estructura variable según &lt;font face=&quot;Courier New&quot;&gt;action&lt;/font&gt; (ver página 6).&lt;br&gt;• Datos específicos del evento (nombres anterior/nuevo, &lt;font face=&quot;Courier New&quot;&gt;gridFsId&lt;/font&gt;, &lt;font face=&quot;Courier New&quot;&gt;size&lt;/font&gt;, &lt;font face=&quot;Courier New&quot;&gt;deletionId&lt;/font&gt;, errores).&lt;br&gt;• No es una entidad independiente: no se consulta por separado.&lt;br&gt;• Guarda &lt;font face=&quot;Courier New&quot;&gt;gridFsId&lt;/font&gt; para que el script de limpieza pueda reintentar borrados fallidos." vertex="1">
+          <mxGeometry height="86" width="700" x="40" y="474" as="geometry" />
+        </mxCell>
+        <mxCell id="n11" parent="1" style="text;html=1;align=left;fontSize=15;fontColor=#444444;" value="&lt;b&gt;REFERENCIAS&lt;/b&gt;" vertex="1">
+          <mxGeometry height="26" width="760" x="800" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="n12" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=13;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;ownerId / createdBy  →  users&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="760" x="800" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="n13" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=12;fillColor=#ffffff;strokeColor=#888888;" value="• Un usuario posee o crea muchos archivos y carpetas: la relación 1:N puede crecer sin límite, por eso no se embebe en &lt;font face=&quot;Courier New&quot;&gt;users&lt;/font&gt;.&lt;br&gt;• &lt;font face=&quot;Courier New&quot;&gt;files.ownerId&lt;/font&gt; es quien cargó el archivo y nunca cambia. &lt;font face=&quot;Courier New&quot;&gt;folders.ownerId&lt;/font&gt; es siempre el dueño de la carpeta padre." vertex="1">
+          <mxGeometry height="86" width="760" x="800" y="158" as="geometry" />
+        </mxCell>
+        <mxCell id="n14" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=13;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;parentId / folderId / ancestors&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="760" x="800" y="262" as="geometry" />
+        </mxCell>
+        <mxCell id="n15" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=12;fillColor=#ffffff;strokeColor=#888888;" value="• Recursos y jerarquía son documentos independientes; &lt;font face=&quot;Courier New&quot;&gt;parentId&lt;/font&gt; es la relación principal.&lt;br&gt;• &lt;font face=&quot;Courier New&quot;&gt;ancestors&lt;/font&gt; es una &lt;b&gt;ruta materializada&lt;/b&gt; (solo ids) para subárboles, breadcrumb y herencia de permisos con una sola consulta.&lt;br&gt;• Los archivos no tienen &lt;font face=&quot;Courier New&quot;&gt;ancestors&lt;/font&gt;, solo &lt;font face=&quot;Courier New&quot;&gt;folderId&lt;/font&gt;: mover una carpeta no obliga a actualizar sus archivos." vertex="1">
+          <mxGeometry height="103" width="760" x="800" y="290" as="geometry" />
+        </mxCell>
+        <mxCell id="n16" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=13;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;shares  (colección separada)&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="760" x="800" y="411" as="geometry" />
+        </mxCell>
+        <mxCell id="n17" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=12;fillColor=#ffffff;strokeColor=#888888;" value="• La relación usuarios–recursos es muchos-a-muchos y necesita consultas, actualizaciones y reportes independientes.&lt;br&gt;• Solo existen &lt;b&gt;shares directos&lt;/b&gt;. Los permisos heredados se calculan en el servidor y no se almacenan.&lt;br&gt;• &lt;b&gt;shares&lt;/b&gt; es la fuente de verdad del acceso; los destinatarios se identifican por &lt;font face=&quot;Courier New&quot;&gt;sharedWithId&lt;/font&gt;, no por email." vertex="1">
+          <mxGeometry height="87" width="760" x="800" y="439" as="geometry" />
+        </mxCell>
+        <mxCell id="n18" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=13;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;gridFsId  →  fs.files&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="760" x="800" y="544" as="geometry" />
+        </mxCell>
+        <mxCell id="n19" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=12;fillColor=#ffffff;strokeColor=#888888;" value="• El contenido físico va en GridFS; &lt;font face=&quot;Courier New&quot;&gt;files&lt;/font&gt; solo guarda metadatos y la referencia.&lt;br&gt;• GridFS no participa en transacciones: metadata y contenido se manejan en fases separadas." vertex="1">
+          <mxGeometry height="52" width="760" x="800" y="572" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="3. Referencias" id="OlsM50rEWoVQ__i1zuKt">
+    <mxGraphModel dx="1554" dy="913" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="800" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="n2" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=24;fontColor=#222222;" value="&lt;b&gt;Tabla de referencias entre colecciones&lt;/b&gt;" vertex="1">
+          <mxGeometry height="36" width="1500" x="40" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="n4" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;Origen&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="140" x="40" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="n5" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;Campo&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="180" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="n6" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;Destino&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="330" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="n7" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;Cardinalidad&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="110" x="480" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="n8" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;Tipo&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="190" x="590" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="n9" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;Notas&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="560" x="780" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="n10" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;folders&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="140" x="40" y="128" as="geometry" />
+        </mxCell>
+        <mxCell id="n11" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;ownerId&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="180" y="128" as="geometry" />
+        </mxCell>
+        <mxCell id="n12" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;users&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="330" y="128" as="geometry" />
+        </mxCell>
+        <mxCell id="n13" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="N:1" vertex="1">
+          <mxGeometry height="28" width="110" x="480" y="128" as="geometry" />
+        </mxCell>
+        <mxCell id="n14" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="Referencia" vertex="1">
+          <mxGeometry height="28" width="190" x="590" y="128" as="geometry" />
+        </mxCell>
+        <mxCell id="n15" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="Dueño del árbol; siempre igual al &lt;font face=&quot;Courier New&quot;&gt;ownerId&lt;/font&gt; de la carpeta padre." vertex="1">
+          <mxGeometry height="28" width="560" x="780" y="128" as="geometry" />
+        </mxCell>
+        <mxCell id="n16" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;folders&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="140" x="40" y="156" as="geometry" />
+        </mxCell>
+        <mxCell id="n17" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;createdBy&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="180" y="156" as="geometry" />
+        </mxCell>
+        <mxCell id="n18" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;users&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="330" y="156" as="geometry" />
+        </mxCell>
+        <mxCell id="n19" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="N:1" vertex="1">
+          <mxGeometry height="28" width="110" x="480" y="156" as="geometry" />
+        </mxCell>
+        <mxCell id="n20" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="Referencia" vertex="1">
+          <mxGeometry height="28" width="190" x="590" y="156" as="geometry" />
+        </mxCell>
+        <mxCell id="n21" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="Usuario que creó la carpeta (puede ser un editor)." vertex="1">
+          <mxGeometry height="28" width="560" x="780" y="156" as="geometry" />
+        </mxCell>
+        <mxCell id="n22" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;folders&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="140" x="40" y="184" as="geometry" />
+        </mxCell>
+        <mxCell id="n23" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;parentId&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="180" y="184" as="geometry" />
+        </mxCell>
+        <mxCell id="n24" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;folders&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="330" y="184" as="geometry" />
+        </mxCell>
+        <mxCell id="n25" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="N:1" vertex="1">
+          <mxGeometry height="28" width="110" x="480" y="184" as="geometry" />
+        </mxCell>
+        <mxCell id="n26" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="Auto-referencia" vertex="1">
+          <mxGeometry height="28" width="190" x="590" y="184" as="geometry" />
+        </mxCell>
+        <mxCell id="n27" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;null&lt;/font&gt; solo en la carpeta raíz del usuario (&lt;font face=&quot;Courier New&quot;&gt;isRoot: true&lt;/font&gt;)." vertex="1">
+          <mxGeometry height="28" width="560" x="780" y="184" as="geometry" />
+        </mxCell>
+        <mxCell id="n28" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;folders&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="140" x="40" y="212" as="geometry" />
+        </mxCell>
+        <mxCell id="n29" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;ancestors[]&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="180" y="212" as="geometry" />
+        </mxCell>
+        <mxCell id="n30" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;folders&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="330" y="212" as="geometry" />
+        </mxCell>
+        <mxCell id="n31" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="N:M" vertex="1">
+          <mxGeometry height="28" width="110" x="480" y="212" as="geometry" />
+        </mxCell>
+        <mxCell id="n32" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="Ruta materializada" vertex="1">
+          <mxGeometry height="28" width="190" x="590" y="212" as="geometry" />
+        </mxCell>
+        <mxCell id="n33" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="Solo ids, de la raíz al padre; índice multikey." vertex="1">
+          <mxGeometry height="28" width="560" x="780" y="212" as="geometry" />
+        </mxCell>
+        <mxCell id="n34" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;files&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="140" x="40" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="n35" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;ownerId&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="180" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="n36" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;users&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="330" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="n37" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="N:1" vertex="1">
+          <mxGeometry height="28" width="110" x="480" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="n38" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="Referencia" vertex="1">
+          <mxGeometry height="28" width="190" x="590" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="n39" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="Quien cargó el archivo; nunca cambia." vertex="1">
+          <mxGeometry height="28" width="560" x="780" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="n40" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;files&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="140" x="40" y="268" as="geometry" />
+        </mxCell>
+        <mxCell id="n41" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;folderId&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="180" y="268" as="geometry" />
+        </mxCell>
+        <mxCell id="n42" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;folders&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="330" y="268" as="geometry" />
+        </mxCell>
+        <mxCell id="n43" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="N:1" vertex="1">
+          <mxGeometry height="28" width="110" x="480" y="268" as="geometry" />
+        </mxCell>
+        <mxCell id="n44" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="Referencia" vertex="1">
+          <mxGeometry height="28" width="190" x="590" y="268" as="geometry" />
+        </mxCell>
+        <mxCell id="n45" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="Carpeta contenedora; la ruta se obtiene desde la carpeta." vertex="1">
+          <mxGeometry height="28" width="560" x="780" y="268" as="geometry" />
+        </mxCell>
+        <mxCell id="n46" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;files&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="140" x="40" y="296" as="geometry" />
+        </mxCell>
+        <mxCell id="n47" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;gridFsId&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="180" y="296" as="geometry" />
+        </mxCell>
+        <mxCell id="n48" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;fs.files&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="330" y="296" as="geometry" />
+        </mxCell>
+        <mxCell id="n49" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="1:1" vertex="1">
+          <mxGeometry height="28" width="110" x="480" y="296" as="geometry" />
+        </mxCell>
+        <mxCell id="n50" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="Referencia" vertex="1">
+          <mxGeometry height="28" width="190" x="590" y="296" as="geometry" />
+        </mxCell>
+        <mxCell id="n51" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="Se reemplaza al editar el contenido (objeto GridFS nuevo)." vertex="1">
+          <mxGeometry height="28" width="560" x="780" y="296" as="geometry" />
+        </mxCell>
+        <mxCell id="n52" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;shares&lt;/font&gt;" vertex="1">
+          <mxGeometry height="44" width="140" x="40" y="324" as="geometry" />
+        </mxCell>
+        <mxCell id="n53" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;resourceId&lt;/font&gt;" vertex="1">
+          <mxGeometry height="44" width="150" x="180" y="324" as="geometry" />
+        </mxCell>
+        <mxCell id="n54" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;files&lt;/font&gt; / &lt;font face=&quot;Courier New&quot;&gt;folders&lt;/font&gt;" vertex="1">
+          <mxGeometry height="44" width="150" x="330" y="324" as="geometry" />
+        </mxCell>
+        <mxCell id="n55" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="N:1" vertex="1">
+          <mxGeometry height="44" width="110" x="480" y="324" as="geometry" />
+        </mxCell>
+        <mxCell id="n56" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="Polimórfica" vertex="1">
+          <mxGeometry height="44" width="190" x="590" y="324" as="geometry" />
+        </mxCell>
+        <mxCell id="n57" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="Los ObjectId no se repiten entre colecciones; &lt;font face=&quot;Courier New&quot;&gt;resourceType&lt;/font&gt; es solo informativo." vertex="1">
+          <mxGeometry height="44" width="560" x="780" y="324" as="geometry" />
+        </mxCell>
+        <mxCell id="n58" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;shares&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="140" x="40" y="368" as="geometry" />
+        </mxCell>
+        <mxCell id="n59" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;ownerId&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="180" y="368" as="geometry" />
+        </mxCell>
+        <mxCell id="n60" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;users&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="330" y="368" as="geometry" />
+        </mxCell>
+        <mxCell id="n61" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="N:1" vertex="1">
+          <mxGeometry height="28" width="110" x="480" y="368" as="geometry" />
+        </mxCell>
+        <mxCell id="n62" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="Referencia" vertex="1">
+          <mxGeometry height="28" width="190" x="590" y="368" as="geometry" />
+        </mxCell>
+        <mxCell id="n63" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="Propietario del recurso compartido." vertex="1">
+          <mxGeometry height="28" width="560" x="780" y="368" as="geometry" />
+        </mxCell>
+        <mxCell id="n64" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;shares&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="140" x="40" y="396" as="geometry" />
+        </mxCell>
+        <mxCell id="n65" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;sharedWithId&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="180" y="396" as="geometry" />
+        </mxCell>
+        <mxCell id="n66" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;users&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="330" y="396" as="geometry" />
+        </mxCell>
+        <mxCell id="n67" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="N:1" vertex="1">
+          <mxGeometry height="28" width="110" x="480" y="396" as="geometry" />
+        </mxCell>
+        <mxCell id="n68" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="Referencia" vertex="1">
+          <mxGeometry height="28" width="190" x="590" y="396" as="geometry" />
+        </mxCell>
+        <mxCell id="n69" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="Destinatario del permiso; debe estar activo." vertex="1">
+          <mxGeometry height="28" width="560" x="780" y="396" as="geometry" />
+        </mxCell>
+        <mxCell id="n70" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;activity_logs&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="140" x="40" y="424" as="geometry" />
+        </mxCell>
+        <mxCell id="n71" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;userId&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="180" y="424" as="geometry" />
+        </mxCell>
+        <mxCell id="n72" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;users&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="330" y="424" as="geometry" />
+        </mxCell>
+        <mxCell id="n73" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="N:1" vertex="1">
+          <mxGeometry height="28" width="110" x="480" y="424" as="geometry" />
+        </mxCell>
+        <mxCell id="n74" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="Referencia" vertex="1">
+          <mxGeometry height="28" width="190" x="590" y="424" as="geometry" />
+        </mxCell>
+        <mxCell id="n75" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="Actor de la acción." vertex="1">
+          <mxGeometry height="28" width="560" x="780" y="424" as="geometry" />
+        </mxCell>
+        <mxCell id="n76" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;activity_logs&lt;/font&gt;" vertex="1">
+          <mxGeometry height="44" width="140" x="40" y="452" as="geometry" />
+        </mxCell>
+        <mxCell id="n77" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;resourceId&lt;/font&gt;" vertex="1">
+          <mxGeometry height="44" width="150" x="180" y="452" as="geometry" />
+        </mxCell>
+        <mxCell id="n78" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;files&lt;/font&gt; / &lt;font face=&quot;Courier New&quot;&gt;folders&lt;/font&gt; / &lt;font face=&quot;Courier New&quot;&gt;users&lt;/font&gt;" vertex="1">
+          <mxGeometry height="44" width="150" x="330" y="452" as="geometry" />
+        </mxCell>
+        <mxCell id="n79" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="N:1" vertex="1">
+          <mxGeometry height="44" width="110" x="480" y="452" as="geometry" />
+        </mxCell>
+        <mxCell id="n80" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="Referencia lógica" vertex="1">
+          <mxGeometry height="44" width="190" x="590" y="452" as="geometry" />
+        </mxCell>
+        <mxCell id="n81" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="Puede quedar huérfana tras el borrado definitivo; por eso existe &lt;font face=&quot;Courier New&quot;&gt;resourceSnapshot&lt;/font&gt;." vertex="1">
+          <mxGeometry height="44" width="560" x="780" y="452" as="geometry" />
+        </mxCell>
+        <mxCell id="n82" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;activity_logs&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="140" x="40" y="496" as="geometry" />
+        </mxCell>
+        <mxCell id="n83" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;affectedUserIds[]&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="180" y="496" as="geometry" />
+        </mxCell>
+        <mxCell id="n84" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;users&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="330" y="496" as="geometry" />
+        </mxCell>
+        <mxCell id="n85" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="N:M" vertex="1">
+          <mxGeometry height="28" width="110" x="480" y="496" as="geometry" />
+        </mxCell>
+        <mxCell id="n86" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="Referencia" vertex="1">
+          <mxGeometry height="28" width="190" x="590" y="496" as="geometry" />
+        </mxCell>
+        <mxCell id="n87" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="Otros usuarios cuyos recursos o accesos se tocaron; alimenta la actividad que afecta a cada usuario." vertex="1">
+          <mxGeometry height="28" width="560" x="780" y="496" as="geometry" />
+        </mxCell>
+        <mxCell id="n88" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;activity_logs.details&lt;/font&gt;" vertex="1">
+          <mxGeometry height="44" width="140" x="40" y="524" as="geometry" />
+        </mxCell>
+        <mxCell id="n89" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;gridFsId&lt;/font&gt;" vertex="1">
+          <mxGeometry height="44" width="150" x="180" y="524" as="geometry" />
+        </mxCell>
+        <mxCell id="n90" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;fs.files&lt;/font&gt;" vertex="1">
+          <mxGeometry height="44" width="150" x="330" y="524" as="geometry" />
+        </mxCell>
+        <mxCell id="n91" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="N:1" vertex="1">
+          <mxGeometry height="44" width="110" x="480" y="524" as="geometry" />
+        </mxCell>
+        <mxCell id="n92" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="Referencia lógica" vertex="1">
+          <mxGeometry height="44" width="190" x="590" y="524" as="geometry" />
+        </mxCell>
+        <mxCell id="n93" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="Para limpieza posterior si falla el borrado en GridFS." vertex="1">
+          <mxGeometry height="44" width="560" x="780" y="524" as="geometry" />
+        </mxCell>
+        <mxCell id="n94" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;fs.chunks&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="140" x="40" y="568" as="geometry" />
+        </mxCell>
+        <mxCell id="n95" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;files_id&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="180" y="568" as="geometry" />
+        </mxCell>
+        <mxCell id="n96" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;fs.files&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="330" y="568" as="geometry" />
+        </mxCell>
+        <mxCell id="n97" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="N:1" vertex="1">
+          <mxGeometry height="28" width="110" x="480" y="568" as="geometry" />
+        </mxCell>
+        <mxCell id="n98" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="Referencia" vertex="1">
+          <mxGeometry height="28" width="190" x="590" y="568" as="geometry" />
+        </mxCell>
+        <mxCell id="n99" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="Estándar de GridFS: los fragmentos pertenecen a un objeto." vertex="1">
+          <mxGeometry height="28" width="560" x="780" y="568" as="geometry" />
+        </mxCell>
+        <mxCell id="n100" parent="1" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fontSize=11;fillColor=#ffffff;strokeColor=#D9650B;rounded=0;" value="&lt;b&gt;Integridad:&lt;/b&gt; al subir, mover, compartir o eliminar, los servicios validan existencia, &lt;font face=&quot;Courier New&quot;&gt;isDeleted: false&lt;/font&gt; y permisos antes de escribir; las operaciones multi-documento usan transacciones (requieren replica set). &lt;font face=&quot;Courier New&quot;&gt;ownerId&lt;/font&gt; de un archivo nunca cambia, por lo que mover entre propietarios está prohibido." vertex="1">
+          <mxGeometry height="50" width="1300" x="40" y="616" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="4. Índices" id="ttSp1mBHrXMlqxwd0KJ0">
+    <mxGraphModel dx="1554" dy="913" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="946" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="n2" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=24;fontColor=#222222;" value="&lt;b&gt;Índices por colección&lt;/b&gt;" vertex="1">
+          <mxGeometry height="36" width="1500" x="40" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="n3" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=13;fontColor=#666666;" value="Cada índice responde a una consulta concreta de la aplicación; la última columna indica cuál. Los compuestos ponen primero los campos de igualdad y después el de orden." vertex="1">
+          <mxGeometry height="24" width="1500" x="40" y="58" as="geometry" />
+        </mxCell>
+        <mxCell id="n4" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;Colección&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="130" x="40" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="n5" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;Índice&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="470" x="170" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="n6" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;Opciones&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="310" x="640" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="n7" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;Consulta que atiende&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="440" x="950" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="n8" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;users&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="130" x="40" y="128" as="geometry" />
+        </mxCell>
+        <mxCell id="n9" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;{ emailNormalized: 1 }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="470" x="170" y="128" as="geometry" />
+        </mxCell>
+        <mxCell id="n10" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;b&gt;unique&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="310" x="640" y="128" as="geometry" />
+        </mxCell>
+        <mxCell id="n11" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="Inicio de sesión; unicidad de correo" vertex="1">
+          <mxGeometry height="28" width="440" x="950" y="128" as="geometry" />
+        </mxCell>
+        <mxCell id="n12" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;users&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="130" x="40" y="156" as="geometry" />
+        </mxCell>
+        <mxCell id="n13" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;{ isActive: 1, role: 1 }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="470" x="170" y="156" as="geometry" />
+        </mxCell>
+        <mxCell id="n14" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="—" vertex="1">
+          <mxGeometry height="28" width="310" x="640" y="156" as="geometry" />
+        </mxCell>
+        <mxCell id="n15" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="Listado de usuarios" vertex="1">
+          <mxGeometry height="28" width="440" x="950" y="156" as="geometry" />
+        </mxCell>
+        <mxCell id="n16" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;folders&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="130" x="40" y="184" as="geometry" />
+        </mxCell>
+        <mxCell id="n17" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;{ parentId: 1, isDeleted: 1, nameNormalized: 1 }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="470" x="170" y="184" as="geometry" />
+        </mxCell>
+        <mxCell id="n18" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="—" vertex="1">
+          <mxGeometry height="28" width="310" x="640" y="184" as="geometry" />
+        </mxCell>
+        <mxCell id="n19" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="Listar contenido de una carpeta ordenado por nombre" vertex="1">
+          <mxGeometry height="28" width="440" x="950" y="184" as="geometry" />
+        </mxCell>
+        <mxCell id="n20" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;folders&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="130" x="40" y="212" as="geometry" />
+        </mxCell>
+        <mxCell id="n21" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;{ ancestors: 1, isDeleted: 1 }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="470" x="170" y="212" as="geometry" />
+        </mxCell>
+        <mxCell id="n22" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="multikey" vertex="1">
+          <mxGeometry height="28" width="310" x="640" y="212" as="geometry" />
+        </mxCell>
+        <mxCell id="n23" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="Mover, papelera, herencia de permisos y breadcrumb" vertex="1">
+          <mxGeometry height="28" width="440" x="950" y="212" as="geometry" />
+        </mxCell>
+        <mxCell id="n24" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;folders&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="130" x="40" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="n25" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;{ parentId: 1, nameNormalized: 1 }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="470" x="170" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="n26" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;b&gt;unique&lt;/b&gt; parcial &lt;font face=&quot;Courier New&quot;&gt;{isDeleted:false, isRoot:false}&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="310" x="640" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="n27" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="Nombre único dentro de la carpeta" vertex="1">
+          <mxGeometry height="28" width="440" x="950" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="n28" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;folders&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="130" x="40" y="268" as="geometry" />
+        </mxCell>
+        <mxCell id="n29" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;{ ownerId: 1 }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="470" x="170" y="268" as="geometry" />
+        </mxCell>
+        <mxCell id="n30" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;b&gt;unique&lt;/b&gt; parcial &lt;font face=&quot;Courier New&quot;&gt;{isRoot:true}&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="310" x="640" y="268" as="geometry" />
+        </mxCell>
+        <mxCell id="n31" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="Una sola carpeta raíz por usuario" vertex="1">
+          <mxGeometry height="28" width="440" x="950" y="268" as="geometry" />
+        </mxCell>
+        <mxCell id="n32" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;folders&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="130" x="40" y="296" as="geometry" />
+        </mxCell>
+        <mxCell id="n33" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;{ ownerId: 1, deletedAt: -1 }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="470" x="170" y="296" as="geometry" />
+        </mxCell>
+        <mxCell id="n34" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="parcial &lt;font face=&quot;Courier New&quot;&gt;{isDeleted:true, isDeletionRoot:true}&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="310" x="640" y="296" as="geometry" />
+        </mxCell>
+        <mxCell id="n35" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="Listar papelera" vertex="1">
+          <mxGeometry height="28" width="440" x="950" y="296" as="geometry" />
+        </mxCell>
+        <mxCell id="n36" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;folders&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="130" x="40" y="324" as="geometry" />
+        </mxCell>
+        <mxCell id="n37" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;{ deletionId: 1 }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="470" x="170" y="324" as="geometry" />
+        </mxCell>
+        <mxCell id="n38" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="parcial &lt;font face=&quot;Courier New&quot;&gt;{isDeleted:true}&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="310" x="640" y="324" as="geometry" />
+        </mxCell>
+        <mxCell id="n39" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="Restaurar y eliminar definitivamente" vertex="1">
+          <mxGeometry height="28" width="440" x="950" y="324" as="geometry" />
+        </mxCell>
+        <mxCell id="n40" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;files&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="130" x="40" y="352" as="geometry" />
+        </mxCell>
+        <mxCell id="n41" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;{ folderId: 1, isDeleted: 1, nameNormalized: 1 }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="470" x="170" y="352" as="geometry" />
+        </mxCell>
+        <mxCell id="n42" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="—" vertex="1">
+          <mxGeometry height="28" width="310" x="640" y="352" as="geometry" />
+        </mxCell>
+        <mxCell id="n43" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="Listar archivos de una carpeta; búsqueda en compartidos" vertex="1">
+          <mxGeometry height="28" width="440" x="950" y="352" as="geometry" />
+        </mxCell>
+        <mxCell id="n44" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;files&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="130" x="40" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="n45" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;{ folderId: 1, nameNormalized: 1 }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="470" x="170" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="n46" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;b&gt;unique&lt;/b&gt; parcial &lt;font face=&quot;Courier New&quot;&gt;{isDeleted:false}&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="310" x="640" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="n47" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="Nombre único dentro de la carpeta" vertex="1">
+          <mxGeometry height="28" width="440" x="950" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="n48" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;files&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="130" x="40" y="408" as="geometry" />
+        </mxCell>
+        <mxCell id="n49" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;{ ownerId: 1, isDeleted: 1, category: 1, createdAt: -1 }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="470" x="170" y="408" as="geometry" />
+        </mxCell>
+        <mxCell id="n50" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="—" vertex="1">
+          <mxGeometry height="28" width="310" x="640" y="408" as="geometry" />
+        </mxCell>
+        <mxCell id="n51" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="Filtro por tipo y fecha (igualdad, luego orden y rango)" vertex="1">
+          <mxGeometry height="28" width="440" x="950" y="408" as="geometry" />
+        </mxCell>
+        <mxCell id="n52" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;files&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="130" x="40" y="436" as="geometry" />
+        </mxCell>
+        <mxCell id="n53" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;{ ownerId: 1, isDeleted: 1, createdAt: -1 }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="470" x="170" y="436" as="geometry" />
+        </mxCell>
+        <mxCell id="n54" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="—" vertex="1">
+          <mxGeometry height="28" width="310" x="640" y="436" as="geometry" />
+        </mxCell>
+        <mxCell id="n55" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="Filtro por fecha sin tipo" vertex="1">
+          <mxGeometry height="28" width="440" x="950" y="436" as="geometry" />
+        </mxCell>
+        <mxCell id="n56" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;files&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="130" x="40" y="464" as="geometry" />
+        </mxCell>
+        <mxCell id="n57" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;{ ownerId: 1, isDeleted: 1, nameNormalized: 1 }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="470" x="170" y="464" as="geometry" />
+        </mxCell>
+        <mxCell id="n58" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="—" vertex="1">
+          <mxGeometry height="28" width="310" x="640" y="464" as="geometry" />
+        </mxCell>
+        <mxCell id="n59" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="Búsqueda en archivos propios y consultas por propietario" vertex="1">
+          <mxGeometry height="28" width="440" x="950" y="464" as="geometry" />
+        </mxCell>
+        <mxCell id="n60" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;files&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="130" x="40" y="492" as="geometry" />
+        </mxCell>
+        <mxCell id="n61" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;{ isDeleted: 1, createdAt: -1 }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="470" x="170" y="492" as="geometry" />
+        </mxCell>
+        <mxCell id="n62" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="—" vertex="1">
+          <mxGeometry height="28" width="310" x="640" y="492" as="geometry" />
+        </mxCell>
+        <mxCell id="n63" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="Reportes por rango de fechas; conteos del administrador" vertex="1">
+          <mxGeometry height="28" width="440" x="950" y="492" as="geometry" />
+        </mxCell>
+        <mxCell id="n64" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;files&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="130" x="40" y="520" as="geometry" />
+        </mxCell>
+        <mxCell id="n65" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;{ ownerId: 1, deletedAt: -1 }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="470" x="170" y="520" as="geometry" />
+        </mxCell>
+        <mxCell id="n66" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="parcial &lt;font face=&quot;Courier New&quot;&gt;{isDeleted:true, isDeletionRoot:true}&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="310" x="640" y="520" as="geometry" />
+        </mxCell>
+        <mxCell id="n67" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="Listar papelera" vertex="1">
+          <mxGeometry height="28" width="440" x="950" y="520" as="geometry" />
+        </mxCell>
+        <mxCell id="n68" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;files&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="130" x="40" y="548" as="geometry" />
+        </mxCell>
+        <mxCell id="n69" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;{ deletionId: 1 }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="470" x="170" y="548" as="geometry" />
+        </mxCell>
+        <mxCell id="n70" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="parcial &lt;font face=&quot;Courier New&quot;&gt;{isDeleted:true}&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="310" x="640" y="548" as="geometry" />
+        </mxCell>
+        <mxCell id="n71" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="Restaurar y eliminar definitivamente" vertex="1">
+          <mxGeometry height="28" width="440" x="950" y="548" as="geometry" />
+        </mxCell>
+        <mxCell id="n72" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;shares&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="130" x="40" y="576" as="geometry" />
+        </mxCell>
+        <mxCell id="n73" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;{ resourceId: 1, sharedWithId: 1 }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="470" x="170" y="576" as="geometry" />
+        </mxCell>
+        <mxCell id="n74" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;b&gt;unique&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="310" x="640" y="576" as="geometry" />
+        </mxCell>
+        <mxCell id="n75" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="Cálculo de permisos; reportes por recurso" vertex="1">
+          <mxGeometry height="28" width="440" x="950" y="576" as="geometry" />
+        </mxCell>
+        <mxCell id="n76" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;shares&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="130" x="40" y="604" as="geometry" />
+        </mxCell>
+        <mxCell id="n77" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;{ sharedWithId: 1, createdAt: -1 }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="470" x="170" y="604" as="geometry" />
+        </mxCell>
+        <mxCell id="n78" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="—" vertex="1">
+          <mxGeometry height="28" width="310" x="640" y="604" as="geometry" />
+        </mxCell>
+        <mxCell id="n79" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="Compartidos conmigo; reportes por destinatario" vertex="1">
+          <mxGeometry height="28" width="440" x="950" y="604" as="geometry" />
+        </mxCell>
+        <mxCell id="n80" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;shares&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="130" x="40" y="632" as="geometry" />
+        </mxCell>
+        <mxCell id="n81" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;{ ownerId: 1, origin: 1, createdAt: -1 }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="470" x="170" y="632" as="geometry" />
+        </mxCell>
+        <mxCell id="n82" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="—" vertex="1">
+          <mxGeometry height="28" width="310" x="640" y="632" as="geometry" />
+        </mxCell>
+        <mxCell id="n83" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="Compartidos por mí; reportes de compartición" vertex="1">
+          <mxGeometry height="28" width="440" x="950" y="632" as="geometry" />
+        </mxCell>
+        <mxCell id="n84" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;activity_logs&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="130" x="40" y="660" as="geometry" />
+        </mxCell>
+        <mxCell id="n85" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;{ userId: 1, timestamp: -1 }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="470" x="170" y="660" as="geometry" />
+        </mxCell>
+        <mxCell id="n86" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="—" vertex="1">
+          <mxGeometry height="28" width="310" x="640" y="660" as="geometry" />
+        </mxCell>
+        <mxCell id="n87" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="Historial de un usuario" vertex="1">
+          <mxGeometry height="28" width="440" x="950" y="660" as="geometry" />
+        </mxCell>
+        <mxCell id="n88" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;activity_logs&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="130" x="40" y="688" as="geometry" />
+        </mxCell>
+        <mxCell id="n89" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;{ resourceType: 1, resourceId: 1, timestamp: -1 }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="470" x="170" y="688" as="geometry" />
+        </mxCell>
+        <mxCell id="n90" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="—" vertex="1">
+          <mxGeometry height="28" width="310" x="640" y="688" as="geometry" />
+        </mxCell>
+        <mxCell id="n91" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="Historial de un recurso; reportes de recursos" vertex="1">
+          <mxGeometry height="28" width="440" x="950" y="688" as="geometry" />
+        </mxCell>
+        <mxCell id="n92" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;activity_logs&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="130" x="40" y="716" as="geometry" />
+        </mxCell>
+        <mxCell id="n93" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;{ timestamp: -1 }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="470" x="170" y="716" as="geometry" />
+        </mxCell>
+        <mxCell id="n94" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="—" vertex="1">
+          <mxGeometry height="28" width="310" x="640" y="716" as="geometry" />
+        </mxCell>
+        <mxCell id="n95" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="Operaciones por período" vertex="1">
+          <mxGeometry height="28" width="440" x="950" y="716" as="geometry" />
+        </mxCell>
+        <mxCell id="n96" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;activity_logs&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="130" x="40" y="744" as="geometry" />
+        </mxCell>
+        <mxCell id="n97" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;{ action: 1, status: 1, timestamp: -1 }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="470" x="170" y="744" as="geometry" />
+        </mxCell>
+        <mxCell id="n98" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="—" vertex="1">
+          <mxGeometry height="28" width="310" x="640" y="744" as="geometry" />
+        </mxCell>
+        <mxCell id="n99" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="Operaciones por tipo de acción" vertex="1">
+          <mxGeometry height="28" width="440" x="950" y="744" as="geometry" />
+        </mxCell>
+        <mxCell id="n100" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;activity_logs&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="130" x="40" y="772" as="geometry" />
+        </mxCell>
+        <mxCell id="n101" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;{ affectedUserIds: 1, timestamp: -1 }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="470" x="170" y="772" as="geometry" />
+        </mxCell>
+        <mxCell id="n102" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="multikey" vertex="1">
+          <mxGeometry height="28" width="310" x="640" y="772" as="geometry" />
+        </mxCell>
+        <mxCell id="n103" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="Actividad que afecta al usuario" vertex="1">
+          <mxGeometry height="28" width="440" x="950" y="772" as="geometry" />
+        </mxCell>
+        <mxCell id="n104" parent="1" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fontSize=11;fillColor=#ffffff;strokeColor=#D9650B;rounded=0;" value="&lt;b&gt;Búsqueda por nombre:&lt;/b&gt; usa regex escapado e insensible a mayúsculas sobre &lt;font face=&quot;Courier New&quot;&gt;nameNormalized&lt;/font&gt;; el regex no puede aprovechar el índice, pero sí el prefijo de igualdad (&lt;font face=&quot;Courier New&quot;&gt;ownerId&lt;/font&gt;, &lt;font face=&quot;Courier New&quot;&gt;parentId&lt;/font&gt; / &lt;font face=&quot;Courier New&quot;&gt;folderId&lt;/font&gt;, &lt;font face=&quot;Courier New&quot;&gt;isDeleted&lt;/font&gt;)." vertex="1">
+          <mxGeometry height="70" width="1350" x="40" y="820" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="5. Jerarquía y herencia" id="2uKNsRWG4lFMrQUBb0IZ">
+    <mxGraphModel dx="1537" dy="903" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="800" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="n2" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=24;fontColor=#222222;" value="&lt;b&gt;Jerarquía de carpetas, ancestors y permisos heredados&lt;/b&gt;" vertex="1">
+          <mxGeometry height="36" width="1500" x="40" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="n4" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=12;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;folders — «/» (raíz de Ana)&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="330" x="60" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="n5" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=11;fillColor=#ffffff;strokeColor=#888888;fontFamily=Courier New;" value="parentId: null&lt;br&gt;isRoot: true&lt;br&gt;ancestors: [ ]" vertex="1">
+          <mxGeometry height="66" width="330" x="60" y="148" as="geometry" />
+        </mxCell>
+        <mxCell id="n6" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=12;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;folders — «Proyectos»&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="330" x="60" y="290" as="geometry" />
+        </mxCell>
+        <mxCell id="n7" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=11;fillColor=#ffffff;strokeColor=#888888;fontFamily=Courier New;" value="parentId: raíz&lt;br&gt;ancestors: [ raíz ]" vertex="1">
+          <mxGeometry height="50" width="330" x="60" y="318" as="geometry" />
+        </mxCell>
+        <mxCell id="n8" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=12;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;folders — «2026»&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="330" x="60" y="440" as="geometry" />
+        </mxCell>
+        <mxCell id="n9" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=11;fillColor=#ffffff;strokeColor=#888888;fontFamily=Courier New;" value="parentId: Proyectos&lt;br&gt;ancestors: [ raíz, Proyectos ]" vertex="1">
+          <mxGeometry height="50" width="330" x="60" y="468" as="geometry" />
+        </mxCell>
+        <mxCell id="n10" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=12;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;files — «informe.md»&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="330" x="60" y="590" as="geometry" />
+        </mxCell>
+        <mxCell id="n11" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=11;fillColor=#ffffff;strokeColor=#888888;fontFamily=Courier New;" value="folderId: 2026&lt;br&gt;ownerId: Ana&lt;br&gt;(sin ancestors)" vertex="1">
+          <mxGeometry height="66" width="330" x="60" y="618" as="geometry" />
+        </mxCell>
+        <mxCell id="n12" edge="1" parent="1" style="endArrow=open;endFill=0;html=1;fontSize=11;labelBackgroundColor=#ffffff;" value="parentId">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="225" y="290" as="sourcePoint" />
+            <mxPoint x="225" y="246" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n13" edge="1" parent="1" style="endArrow=open;endFill=0;html=1;fontSize=11;labelBackgroundColor=#ffffff;" value="parentId">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="225" y="440" as="sourcePoint" />
+            <mxPoint x="225" y="396" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n14" edge="1" parent="1" style="endArrow=open;endFill=0;html=1;fontSize=11;labelBackgroundColor=#ffffff;" value="folderId">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="225" y="590" as="sourcePoint" />
+            <mxPoint x="225" y="538" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n15" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=12;fillColor=#D9650B;strokeColor=#D9650B;fontColor=#ffffff;" value="&lt;b&gt;shares  (único documento creado)&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="420" x="560" y="290" as="geometry" />
+        </mxCell>
+        <mxCell id="n16" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=11;fillColor=#ffffff;strokeColor=#D9650B;fontFamily=Courier New;" value="resourceId: Proyectos&lt;br&gt;resourceType: &quot;folder&quot;&lt;br&gt;ownerId: Ana&lt;br&gt;sharedWithId: Luis&lt;br&gt;permission: &quot;edit&quot;&lt;br&gt;origin: &quot;manual&quot;" vertex="1">
+          <mxGeometry height="114" width="420" x="560" y="318" as="geometry" />
+        </mxCell>
+        <mxCell id="n17" edge="1" parent="1" style="endArrow=block;endFill=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;strokeColor=#D9650B;" value="share directo">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="560" y="340" as="sourcePoint" />
+            <mxPoint x="392" y="320" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n18" edge="1" parent="1" style="endArrow=block;endFill=1;html=1;dashed=1;strokeColor=#D9650B;strokeWidth=2;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="410" y="320" as="sourcePoint" />
+            <mxPoint x="410" y="470" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n19" edge="1" parent="1" style="endArrow=block;endFill=1;html=1;dashed=1;strokeColor=#D9650B;strokeWidth=2;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="410" y="470" as="sourcePoint" />
+            <mxPoint x="410" y="620" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n20" parent="1" style="text;html=1;align=left;fontSize=11;fontColor=#D9650B;" value="hereda edit" vertex="1">
+          <mxGeometry height="20" width="90" x="418" y="395" as="geometry" />
+        </mxCell>
+        <mxCell id="n21" parent="1" style="text;html=1;align=left;fontSize=11;fontColor=#D9650B;" value="hereda edit" vertex="1">
+          <mxGeometry height="20" width="90" x="418" y="545" as="geometry" />
+        </mxCell>
+        <mxCell id="n22" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=12;fillColor=#D9650B;strokeColor=#D9650B;fontColor=#ffffff;" value="&lt;b&gt;Verificar acceso de Luis a «informe.md»&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="780" x="560" y="500" as="geometry" />
+        </mxCell>
+        <mxCell id="n23" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=11;fillColor=#ffffff;strokeColor=#D9650B;" value="1. Cortocircuito: ¿Luis es propietario? No.&lt;br&gt;2. Una sola consulta con los ancestros del archivo:&lt;br&gt;&lt;font face=&quot;Courier New&quot;&gt;db.shares.find({ resourceId: { $in: [ informe.md, 2026, Proyectos, raíz ] }, sharedWithId: Luis })&lt;/font&gt;&lt;br&gt;3. Resultado: el share de «Proyectos» (edit)  →  Luis puede editar contenido y renombrar.&lt;br&gt;4. Precedencia del permiso efectivo: propietario &amp;gt; share directo &amp;gt; heredado por &lt;font face=&quot;Courier New&quot;&gt;ancestors&lt;/font&gt;.&lt;br&gt;5. Ningún documento existe para «2026» ni «informe.md»: el permiso heredado se &lt;b&gt;calcula&lt;/b&gt;, no se almacena." vertex="1">
+          <mxGeometry height="114" width="780" x="560" y="528" as="geometry" />
+        </mxCell>
+        <mxCell id="n24" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=12;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;Reglas de herencia&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="780" x="560" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="n25" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=11;fillColor=#ffffff;strokeColor=#888888;" value="• Los shares de una carpeta se heredan a todos sus descendientes.&lt;br&gt;• El permiso efectivo se calcula en este orden: propietario &amp;gt; share directo &amp;gt; heredado por &lt;font face=&quot;Courier New&quot;&gt;ancestors&lt;/font&gt;.&lt;br&gt;• Retirar el share de una carpeta &lt;b&gt;no&lt;/b&gt; elimina shares directos de sus descendientes.&lt;br&gt;• Mover una carpeta cambia &lt;font face=&quot;Courier New&quot;&gt;ancestors&lt;/font&gt; y, por tanto, los permisos heredados.&lt;br&gt;• Compartir, cambiar y retirar permisos es exclusivo del propietario; la carpeta raíz no se comparte.&lt;br&gt;• El breadcrumb solo muestra ancestros a los que el usuario tiene acceso." vertex="1">
+          <mxGeometry height="118" width="780" x="560" y="148" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="6. activity_logs" id="gznONKH4ISE2VJBnSFD9">
+    <mxGraphModel grid="1" page="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" pageScale="1" pageWidth="1600" pageHeight="800" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="n2" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=24;fontColor=#222222;" value="&lt;b&gt;Colección activity_logs: estructura y catálogo de acciones&lt;/b&gt;" vertex="1">
+          <mxGeometry height="36" width="1500" x="40" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="n4" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=12;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;Estructura del documento&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="520" x="40" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="n5" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=11;fillColor=#ffffff;strokeColor=#888888;fontFamily=Courier New;" value="{&lt;br&gt;  _id: ObjectId,&lt;br&gt;  userId: ObjectId,          // actor&lt;br&gt;  action: &quot;UPLOAD&quot;,&lt;br&gt;  status: &quot;success&quot; | &quot;error&quot;,&lt;br&gt;  resourceType: &quot;file&quot; | &quot;folder&quot; | &quot;user&quot;,&lt;br&gt;  resourceId: ObjectId,&lt;br&gt;  resourceSnapshot: { name, ownerId },&lt;br&gt;  details: { ... },          // según acción&lt;br&gt;  affectedUserIds: [ObjectId],&lt;br&gt;  timestamp: ISODate&lt;br&gt;}" vertex="1">
+          <mxGeometry height="210" width="520" x="40" y="128" as="geometry" />
+        </mxCell>
+        <mxCell id="n6" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=12;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;Catálogo cerrado de action&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="520" x="40" y="356" as="geometry" />
+        </mxCell>
+        <mxCell id="n7" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=11;fillColor=#ffffff;strokeColor=#888888;" value="&lt;b&gt;Archivos:&lt;/b&gt; &lt;font face=&quot;Courier New&quot;&gt;UPLOAD&lt;/font&gt;, &lt;font face=&quot;Courier New&quot;&gt;DOWNLOAD&lt;/font&gt;, &lt;font face=&quot;Courier New&quot;&gt;EDIT_CONTENT&lt;/font&gt;, &lt;font face=&quot;Courier New&quot;&gt;RENAME&lt;/font&gt;, &lt;font face=&quot;Courier New&quot;&gt;MOVE&lt;/font&gt;&lt;br&gt;&lt;b&gt;Carpetas:&lt;/b&gt; &lt;font face=&quot;Courier New&quot;&gt;FOLDER_CREATE&lt;/font&gt;&lt;br&gt;&lt;b&gt;Papelera:&lt;/b&gt; &lt;font face=&quot;Courier New&quot;&gt;TRASH&lt;/font&gt;, &lt;font face=&quot;Courier New&quot;&gt;RESTORE&lt;/font&gt;, &lt;font face=&quot;Courier New&quot;&gt;DELETE_PERMANENT&lt;/font&gt;&lt;br&gt;&lt;b&gt;Compartición:&lt;/b&gt; &lt;font face=&quot;Courier New&quot;&gt;SHARE&lt;/font&gt;, &lt;font face=&quot;Courier New&quot;&gt;PERMISSION_CHANGE&lt;/font&gt;, &lt;font face=&quot;Courier New&quot;&gt;UNSHARE&lt;/font&gt;&lt;br&gt;&lt;b&gt;Administración:&lt;/b&gt; &lt;font face=&quot;Courier New&quot;&gt;USER_CREATE&lt;/font&gt;, &lt;font face=&quot;Courier New&quot;&gt;USER_STATUS_CHANGE&lt;/font&gt;, &lt;font face=&quot;Courier New&quot;&gt;QUOTA_CHANGE&lt;/font&gt;&lt;br&gt;Nota: la vista previa &lt;b&gt;no&lt;/b&gt; registra actividad; no existe la acción &lt;font face=&quot;Courier New&quot;&gt;VIEW&lt;/font&gt;." vertex="1">
+          <mxGeometry height="114" width="520" x="40" y="384" as="geometry" />
+        </mxCell>
+        <mxCell id="n10" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;action&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="600" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="n11" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;details (ejemplo)&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="420" x="750" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="n12" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;affectedUserIds se llena con&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="300" x="1170" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="n13" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;UPLOAD&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="600" y="128" as="geometry" />
+        </mxCell>
+        <mxCell id="n14" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;{ gridFsId, size, folderId }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="420" x="750" y="128" as="geometry" />
+        </mxCell>
+        <mxCell id="n15" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="Dueño de la carpeta si es ajena" vertex="1">
+          <mxGeometry height="28" width="300" x="1170" y="128" as="geometry" />
+        </mxCell>
+        <mxCell id="n16" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;EDIT_CONTENT&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="600" y="156" as="geometry" />
+        </mxCell>
+        <mxCell id="n17" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;{ previousGridFsId, newGridFsId, previousSize, newSize }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="420" x="750" y="156" as="geometry" />
+        </mxCell>
+        <mxCell id="n18" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="Propietario y usuarios con share directo" vertex="1">
+          <mxGeometry height="28" width="300" x="1170" y="156" as="geometry" />
+        </mxCell>
+        <mxCell id="n19" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;FOLDER_CREATE&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="600" y="184" as="geometry" />
+        </mxCell>
+        <mxCell id="n20" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;{ parentId, createdBy }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="420" x="750" y="184" as="geometry" />
+        </mxCell>
+        <mxCell id="n21" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="Propietario del árbol si actúa otro" vertex="1">
+          <mxGeometry height="28" width="300" x="1170" y="184" as="geometry" />
+        </mxCell>
+        <mxCell id="n22" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;RENAME&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="600" y="212" as="geometry" />
+        </mxCell>
+        <mxCell id="n23" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;{ previousName, newName }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="420" x="750" y="212" as="geometry" />
+        </mxCell>
+        <mxCell id="n24" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="Propietario y usuarios con share directo" vertex="1">
+          <mxGeometry height="28" width="300" x="1170" y="212" as="geometry" />
+        </mxCell>
+        <mxCell id="n25" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;MOVE&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="600" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="n26" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;{ previousFolderId, newFolderId }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="420" x="750" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="n27" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="Usuarios con share directo" vertex="1">
+          <mxGeometry height="28" width="300" x="1170" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="n28" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;SHARE&lt;/font&gt; / &lt;font face=&quot;Courier New&quot;&gt;PERMISSION_CHANGE&lt;/font&gt; / &lt;font face=&quot;Courier New&quot;&gt;UNSHARE&lt;/font&gt;" vertex="1">
+          <mxGeometry height="44" width="150" x="600" y="268" as="geometry" />
+        </mxCell>
+        <mxCell id="n29" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;{ sharedWithId, permission, origin }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="44" width="420" x="750" y="268" as="geometry" />
+        </mxCell>
+        <mxCell id="n30" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="El destinatario" vertex="1">
+          <mxGeometry height="44" width="300" x="1170" y="268" as="geometry" />
+        </mxCell>
+        <mxCell id="n31" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;TRASH&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="600" y="312" as="geometry" />
+        </mxCell>
+        <mxCell id="n32" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;{ deletionId, isDeletionRoot }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="420" x="750" y="312" as="geometry" />
+        </mxCell>
+        <mxCell id="n33" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="Propietario y usuarios con share directo" vertex="1">
+          <mxGeometry height="28" width="300" x="1170" y="312" as="geometry" />
+        </mxCell>
+        <mxCell id="n34" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;RESTORE&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="600" y="340" as="geometry" />
+        </mxCell>
+        <mxCell id="n35" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;{ deletionId, previousFolderId, destinationFolderId }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="420" x="750" y="340" as="geometry" />
+        </mxCell>
+        <mxCell id="n36" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="Propietario y usuarios con share directo" vertex="1">
+          <mxGeometry height="28" width="300" x="1170" y="340" as="geometry" />
+        </mxCell>
+        <mxCell id="n37" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;DELETE_PERMANENT&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="600" y="368" as="geometry" />
+        </mxCell>
+        <mxCell id="n38" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;{ deletionId, gridFsId, size }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="420" x="750" y="368" as="geometry" />
+        </mxCell>
+        <mxCell id="n39" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="Propietario y usuarios con share directo" vertex="1">
+          <mxGeometry height="28" width="300" x="1170" y="368" as="geometry" />
+        </mxCell>
+        <mxCell id="n40" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;QUOTA_CHANGE&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="600" y="396" as="geometry" />
+        </mxCell>
+        <mxCell id="n41" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;{ previousQuotaBytes, newQuotaBytes }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="420" x="750" y="396" as="geometry" />
+        </mxCell>
+        <mxCell id="n42" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="El usuario afectado" vertex="1">
+          <mxGeometry height="28" width="300" x="1170" y="396" as="geometry" />
+        </mxCell>
+        <mxCell id="n43" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;status: &quot;error&quot;&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="150" x="600" y="424" as="geometry" />
+        </mxCell>
+        <mxCell id="n44" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="&lt;font face=&quot;Courier New&quot;&gt;{ errorCode: &quot;GRIDFS_DELETE_FAILED&quot;, gridFsId, message }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="420" x="750" y="424" as="geometry" />
+        </mxCell>
+        <mxCell id="n45" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=11;fillColor=#ffffff;strokeColor=#bdbdbd;" value="—" vertex="1">
+          <mxGeometry height="28" width="300" x="1170" y="424" as="geometry" />
+        </mxCell>
+        <mxCell id="n46" parent="1" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fontSize=11;fillColor=#ffffff;strokeColor=#D9650B;rounded=0;" value="&lt;b&gt;Reglas de afectados:&lt;/b&gt; &lt;font face=&quot;Courier New&quot;&gt;affectedUserIds&lt;/font&gt; se puebla solo con el &lt;b&gt;propietario&lt;/b&gt; y los &lt;b&gt;shares directos&lt;/b&gt; de logs nuevos; no se hace backfill masivo sobre logs existentes.&lt;br&gt;&lt;b&gt;Visibilidad:&lt;/b&gt; el historial de un recurso muestra acciones propias y las del propietario del recurso; la actividad que me afecta filtra &lt;font face=&quot;Courier New&quot;&gt;affectedUserIds = usuario&lt;/font&gt;, &lt;font face=&quot;Courier New&quot;&gt;status: &quot;success&quot;&lt;/font&gt; y excluye acciones propias.&lt;br&gt;&lt;b&gt;Operaciones masivas:&lt;/b&gt; se crea un log por carpeta y por cada recurso afectado.&lt;br&gt;&lt;b&gt;Conservación:&lt;/b&gt; el historial es append-only con &lt;font face=&quot;Courier New&quot;&gt;timestamp&lt;/font&gt; explícito y se conserva aunque el recurso se elimine definitivamente." vertex="1">
+          <mxGeometry height="118" width="870" x="600" y="498" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="7. GridFS" id="ItT34KO7_gTGjWCFWRnZ">
+    <mxGraphModel dx="1414" dy="831" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="800" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="n2" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=24;fontColor=#222222;" value="&lt;b&gt;Almacenamiento del contenido con GridFS&lt;/b&gt;" vertex="1">
+          <mxGeometry height="36" width="1500" x="40" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="n4" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=12;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;files  (metadata)&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="360" x="40" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="n5" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=11;fillColor=#ffffff;strokeColor=#888888;fontFamily=Courier New;" value="_id&lt;br&gt;name, nameNormalized, category&lt;br&gt;size&lt;br&gt;gridFsId  ─────────────┐&lt;br&gt;ownerId, folderId" vertex="1">
+          <mxGeometry height="98" width="360" x="40" y="138" as="geometry" />
+        </mxCell>
+        <mxCell id="n6" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=12;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;fs.files&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="360" x="500" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="n7" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=11;fillColor=#ffffff;strokeColor=#888888;fontFamily=Courier New;" value="_id  ◄────────────────────┘&lt;br&gt;length, chunkSize&lt;br&gt;uploadDate, filename" vertex="1">
+          <mxGeometry height="66" width="360" x="500" y="138" as="geometry" />
+        </mxCell>
+        <mxCell id="n8" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=12;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;fs.chunks&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="360" x="960" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="n9" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=11;fillColor=#ffffff;strokeColor=#888888;fontFamily=Courier New;" value="_id&lt;br&gt;files_id  ──► fs.files._id&lt;br&gt;n   (orden del fragmento)&lt;br&gt;data (BinData)" vertex="1">
+          <mxGeometry height="82" width="360" x="960" y="138" as="geometry" />
+        </mxCell>
+        <mxCell id="n10" edge="1" parent="1" style="endArrow=open;endFill=0;html=1;fontSize=11;labelBackgroundColor=#ffffff;" value="1 : 1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="400" y="160" as="sourcePoint" />
+            <mxPoint x="500" y="160" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n11" edge="1" parent="1" style="endArrow=open;endFill=0;html=1;fontSize=11;labelBackgroundColor=#ffffff;" value="1 : N">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="960" y="160" as="sourcePoint" />
+            <mxPoint x="860" y="160" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n12" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=12;fillColor=#D9650B;strokeColor=#D9650B;fontColor=#ffffff;" value="&lt;b&gt;Reserva atómica de cuota&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="640" x="40" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="n13" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=11;fillColor=#ffffff;strokeColor=#D9650B;" value="&lt;font face=&quot;Courier New&quot;&gt;db.users.updateOne(&lt;/font&gt;&lt;br&gt;&lt;font face=&quot;Courier New&quot;&gt;  { _id: ownerId, isActive: true,&lt;/font&gt;&lt;br&gt;&lt;font face=&quot;Courier New&quot;&gt;    $or: [ { &quot;storage.quotaBytes&quot;: null },&lt;/font&gt;&lt;br&gt;&lt;font face=&quot;Courier New&quot;&gt;           { $expr: { $lte: [ { $add: [&quot;$storage.usedBytes&quot;, size] }, &quot;$storage.quotaBytes&quot; ] } } ] },&lt;/font&gt;&lt;br&gt;&lt;font face=&quot;Courier New&quot;&gt;  { $inc: { &quot;storage.usedBytes&quot;: size } }, { session })&lt;/font&gt;&lt;br&gt;&lt;font face=&quot;Courier New&quot;&gt;matchedCount === 0&lt;/font&gt; → cuota excedida o usuario inactivo: abortar la transacción." vertex="1">
+          <mxGeometry height="130" width="640" x="40" y="358" as="geometry" />
+        </mxCell>
+        <mxCell id="n14" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=12;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;Reglas del contenido&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="600" x="720" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="n15" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=11;fillColor=#ffffff;strokeColor=#888888;" value="• Solo &lt;font face=&quot;Courier New&quot;&gt;.txt&lt;/font&gt; y &lt;font face=&quot;Courier New&quot;&gt;.md&lt;/font&gt; (la categoría se deriva de la extensión); MIME permitido: &lt;font face=&quot;Courier New&quot;&gt;text/plain&lt;/font&gt;, &lt;font face=&quot;Courier New&quot;&gt;text/markdown&lt;/font&gt;, &lt;font face=&quot;Courier New&quot;&gt;text/x-markdown&lt;/font&gt;, &lt;font face=&quot;Courier New&quot;&gt;application/octet-stream&lt;/font&gt;.&lt;br&gt;• UTF-8 validado en streaming con &lt;font face=&quot;Courier New&quot;&gt;TextDecoder(&quot;utf-8&quot;, { fatal: true })&lt;/font&gt; y &lt;font face=&quot;Courier New&quot;&gt;{ stream: true }&lt;/font&gt;.&lt;br&gt;• La extensión y el MIME se validan antes de crear el objeto GridFS para no dejar huérfanos.&lt;br&gt;• Sin límite individual de tamaño; el límite efectivo es la cuota.&lt;br&gt;• Editar contenido crea un objeto GridFS &lt;b&gt;nuevo&lt;/b&gt; y reemplaza &lt;font face=&quot;Courier New&quot;&gt;gridFsId&lt;/font&gt;; el anterior se borra tras el commit.&lt;br&gt;• Descargar sirve el stream como adjunto (nombre con fallback ASCII y &lt;font face=&quot;Courier New&quot;&gt;filename*&lt;/font&gt; UTF-8); la vista previa lo sirve en línea y no registra actividad." vertex="1">
+          <mxGeometry height="205" width="600" x="720" y="358" as="geometry" />
+        </mxCell>
+        <mxCell id="n16" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=12;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;Dos fases para mantener consistencia&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="640" x="40" y="508" as="geometry" />
+        </mxCell>
+        <mxCell id="n17" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=11;fillColor=#ffffff;strokeColor=#888888;" value="&lt;b&gt;Carga:&lt;/b&gt; (1) stream a GridFS con validación UTF-8 → (2) transacción: reservar cuota + crear &lt;font face=&quot;Courier New&quot;&gt;files&lt;/font&gt; + share automático + log → si algo falla, borrar el objeto GridFS.&lt;br&gt;&lt;b&gt;Edición:&lt;/b&gt; (1) objeto GridFS nuevo → (2) transacción: delta de cuota + actualizar &lt;font face=&quot;Courier New&quot;&gt;files&lt;/font&gt; + log → (3) borrar el objeto anterior.&lt;br&gt;&lt;b&gt;Eliminación definitiva:&lt;/b&gt; (1) transacción de metadata, shares, cuota y log → (2) borrar objetos GridFS; si falla se registra &lt;font face=&quot;Courier New&quot;&gt;GRIDFS_DELETE_FAILED&lt;/font&gt; con el &lt;font face=&quot;Courier New&quot;&gt;gridFsId&lt;/font&gt;." vertex="1">
+          <mxGeometry height="114" width="640" x="40" y="536" as="geometry" />
+        </mxCell>
+        <mxCell id="n18" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=12;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;Limpieza de GridFS huérfano&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="600" x="720" y="603" as="geometry" />
+        </mxCell>
+        <mxCell id="n19" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=11;fillColor=#ffffff;strokeColor=#888888;" value="El script de limpieza (&lt;font face=&quot;Courier New&quot;&gt;npm run db:cleanup-gridfs&lt;/font&gt;) lee los logs con &lt;font face=&quot;Courier New&quot;&gt;errorCode&lt;/font&gt; de GridFS, reintenta el borrado del &lt;font face=&quot;Courier New&quot;&gt;gridFsId&lt;/font&gt; guardado en &lt;font face=&quot;Courier New&quot;&gt;details&lt;/font&gt; y trata «archivo no encontrado» como éxito." vertex="1">
+          <mxGeometry height="66" width="600" x="720" y="631" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="8. Ejemplos de documentos" id="g1OqYMgr8pPr4UEuX_L6">
+    <mxGraphModel dx="1607" dy="944" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1660" pageHeight="800" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="n2" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=24;fontColor=#222222;" value="&lt;b&gt;Ejemplos de documentos&lt;/b&gt;" vertex="1">
+          <mxGeometry height="36" width="1500" x="40" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="n3" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=13;fontColor=#666666;" value="Valores ilustrativos; los ObjectId se abrevian." vertex="1">
+          <mxGeometry height="24" width="1500" x="40" y="58" as="geometry" />
+        </mxCell>
+        <mxCell id="n4" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=12;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;users&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="520" x="40" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="n5" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=11;fillColor=#ffffff;strokeColor=#888888;fontFamily=Courier New;" value="{&lt;br&gt;  _id: ObjectId(&quot;…a1&quot;),&lt;br&gt;  email: &quot;Juan@docsdrive.local&quot;,&lt;br&gt;  emailNormalized: &quot;juan@docsdrive.local&quot;,&lt;br&gt;  passwordHash: &quot;$2b$10$…&quot;,&lt;br&gt;  role: &quot;user&quot;,&lt;br&gt;  isActive: true,&lt;br&gt;  storage: { quotaBytes: 104857600, usedBytes: 20480 },&lt;br&gt;  createdAt: ISODate(&quot;2026-10-01T15:00:00Z&quot;)&lt;br&gt;}" vertex="1">
+          <mxGeometry height="178" width="520" x="40" y="128" as="geometry" />
+        </mxCell>
+        <mxCell id="n6" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=12;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;folders  (raíz y carpeta normal)&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="520" x="40" y="322" as="geometry" />
+        </mxCell>
+        <mxCell id="n7" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=11;fillColor=#ffffff;strokeColor=#888888;fontFamily=Courier New;" value="{ _id: …b0, ownerId: …a1, createdBy: …a1, parentId: null,&lt;br&gt;  isRoot: true, name: &quot;/&quot;, ancestors: [], isDeleted: false }&lt;br&gt;&lt;br&gt;{ _id: …b1, ownerId: …a1, createdBy: …a2, parentId: …b0,&lt;br&gt;  isRoot: false, name: &quot;Proyectos&quot;, nameNormalized: &quot;proyectos&quot;,&lt;br&gt;  ancestors: [ …b0 ], isDeleted: false }" vertex="1">
+          <mxGeometry height="114" width="520" x="40" y="350" as="geometry" />
+        </mxCell>
+        <mxCell id="n8" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=12;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;files&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="520" x="40" y="480" as="geometry" />
+        </mxCell>
+        <mxCell id="n9" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=11;fillColor=#ffffff;strokeColor=#888888;fontFamily=Courier New;" value="{&lt;br&gt;  _id: …c1, ownerId: …a1, folderId: …b1,&lt;br&gt;  name: &quot;informe.md&quot;, nameNormalized: &quot;informe.md&quot;,&lt;br&gt;  mimeType: &quot;text/markdown&quot;, category: &quot;MD&quot;,&lt;br&gt;  size: 2048, gridFsId: …d1,&lt;br&gt;  isDeleted: false, deletedAt: null,&lt;br&gt;  createdAt: ISODate(&quot;2026-10-05T10:00:00Z&quot;)&lt;br&gt;}" vertex="1">
+          <mxGeometry height="146" width="520" x="40" y="508" as="geometry" />
+        </mxCell>
+        <mxCell id="n10" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=12;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;shares&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="540" x="600" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="n11" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=11;fillColor=#ffffff;strokeColor=#888888;fontFamily=Courier New;" value="{&lt;br&gt;  _id: …e1, resourceType: &quot;file&quot;, resourceId: …c1,&lt;br&gt;  ownerId: …a1, sharedWithId: …a3,&lt;br&gt;  permission: &quot;read&quot;, origin: &quot;manual&quot;,&lt;br&gt;  createdAt: ISODate(&quot;2026-10-06T09:00:00Z&quot;)&lt;br&gt;}" vertex="1">
+          <mxGeometry height="114" width="540" x="600" y="128" as="geometry" />
+        </mxCell>
+        <mxCell id="n12" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=12;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;shares  (automático por carga en carpeta ajena)&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="540" x="600" y="258" as="geometry" />
+        </mxCell>
+        <mxCell id="n13" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=11;fillColor=#ffffff;strokeColor=#888888;fontFamily=Courier New;" value="{ resourceId: …c2, ownerId: …a2, sharedWithId: …a1,&lt;br&gt;  permission: &quot;edit&quot;, origin: &quot;auto&quot; }&lt;br&gt;&lt;br&gt;// …c2 lo cargó otro usuario en una carpeta de …a1;&lt;br&gt;// …a1 recibe edit automático." vertex="1">
+          <mxGeometry height="98" width="540" x="600" y="286" as="geometry" />
+        </mxCell>
+        <mxCell id="n14" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=12;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;activity_logs  (UPLOAD)&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="540" x="600" y="400" as="geometry" />
+        </mxCell>
+        <mxCell id="n15" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=11;fillColor=#ffffff;strokeColor=#888888;fontFamily=Courier New;" value="{&lt;br&gt;  userId: …a2, action: &quot;UPLOAD&quot;, status: &quot;success&quot;,&lt;br&gt;  resourceType: &quot;file&quot;, resourceId: …c2,&lt;br&gt;  resourceSnapshot: { name: &quot;notas.txt&quot;, ownerId: …a2 },&lt;br&gt;  details: { gridFsId: …d2, size: 1200, folderId: …b1 },&lt;br&gt;  affectedUserIds: [ …a1 ],&lt;br&gt;  timestamp: ISODate(&quot;2026-10-07T14:30:00Z&quot;)&lt;br&gt;}" vertex="1">
+          <mxGeometry height="146" width="540" x="600" y="428" as="geometry" />
+        </mxCell>
+        <mxCell id="n16" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=12;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;activity_logs  (error de GridFS)&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="420" x="1180" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="n17" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=11;fillColor=#ffffff;strokeColor=#888888;fontFamily=Courier New;" value="{&lt;br&gt;  userId: …a1, action: &quot;DELETE_PERMANENT&quot;,&lt;br&gt;  status: &quot;error&quot;,&lt;br&gt;  resourceType: &quot;file&quot;, resourceId: …c1,&lt;br&gt;  details: {&lt;br&gt;    errorCode: &quot;GRIDFS_DELETE_FAILED&quot;,&lt;br&gt;    gridFsId: …d1,&lt;br&gt;    message: &quot;No fue posible eliminar…&quot;&lt;br&gt;  }&lt;br&gt;}" vertex="1">
+          <mxGeometry height="178" width="420" x="1180" y="128" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="9. MongoDB en el proyecto" id="2Pj1G7SFxwvUCj_kCM8W">
+    <mxGraphModel grid="1" page="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" pageScale="1" pageWidth="1670" pageHeight="800" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="n2" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=24;fontColor=#222222;" value="&lt;b&gt;MongoDB en el proyecto&lt;/b&gt;" vertex="1">
+          <mxGeometry height="36" width="1500" x="40" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="n3" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=13;fontColor=#666666;" value="Funcionalidades propias de MongoDB que usa el sistema y las reglas que siguen los reportes administrativos." vertex="1">
+          <mxGeometry height="24" width="1500" x="40" y="58" as="geometry" />
+        </mxCell>
+        <mxCell id="n4" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=13;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;Funcionalidades de MongoDB usadas&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="760" x="40" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="n5" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=12;fillColor=#ffffff;strokeColor=#888888;" value="&lt;b&gt;Replica set + transacciones:&lt;/b&gt; un replica set de un solo nodo habilita operaciones atómicas entre colecciones: alta de usuario con su carpeta raíz y log, borrado definitivo de metadata, shares y cuota, y movimientos.&lt;br&gt;&lt;b&gt;GridFS:&lt;/b&gt; almacenamiento binario fuera de las colecciones de documentos, con borrado manual; &lt;font face=&quot;Courier New&quot;&gt;files.gridFsId&lt;/font&gt; enlaza ambos.&lt;br&gt;&lt;b&gt;Aggregation pipeline:&lt;/b&gt; reportes con &lt;font face=&quot;Courier New&quot;&gt;$match&lt;/font&gt;, &lt;font face=&quot;Courier New&quot;&gt;$group&lt;/font&gt;, &lt;font face=&quot;Courier New&quot;&gt;$sort&lt;/font&gt;, &lt;font face=&quot;Courier New&quot;&gt;$project&lt;/font&gt;, &lt;font face=&quot;Courier New&quot;&gt;$lookup&lt;/font&gt;, &lt;font face=&quot;Courier New&quot;&gt;$unwind&lt;/font&gt;, &lt;font face=&quot;Courier New&quot;&gt;$facet&lt;/font&gt; y &lt;font face=&quot;Courier New&quot;&gt;$dateTrunc&lt;/font&gt;.&lt;br&gt;&lt;b&gt;Índices compuestos y parciales:&lt;/b&gt; prefijo de igualdad antes del campo de orden, &lt;font face=&quot;Courier New&quot;&gt;partialFilterExpression&lt;/font&gt; y unicidad condicional.&lt;br&gt;&lt;b&gt;Denormalización:&lt;/b&gt; &lt;font face=&quot;Courier New&quot;&gt;resourceSnapshot&lt;/font&gt; en logs, &lt;font face=&quot;Courier New&quot;&gt;ancestors&lt;/font&gt; en carpetas y emails cacheados cuando es necesario.&lt;br&gt;&lt;b&gt;ObjectId:&lt;/b&gt; claves y relaciones entre colecciones; los emails no se usan como clave porque son mutables." vertex="1">
+          <mxGeometry height="236" width="760" x="40" y="128" as="geometry" />
+        </mxCell>
+        <mxCell id="n6" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=13;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;Transacciones y GridFS&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="760" x="40" y="384" as="geometry" />
+        </mxCell>
+        <mxCell id="n7" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=12;fillColor=#ffffff;strokeColor=#888888;" value="• GridFS no participa en transacciones: la metadata se guarda en una transacción y el contenido se crea o elimina fuera de ella; si algo falla se elimina el objeto GridFS para evitar huérfanos.&lt;br&gt;• La cuota (&lt;font face=&quot;Courier New&quot;&gt;users.storage&lt;/font&gt;) se reserva al terminar la transmisión, para no consumir espacio si la subida falla.&lt;br&gt;• &lt;font face=&quot;Courier New&quot;&gt;activity_logs&lt;/font&gt; es append-only: sus registros se conservan aunque el recurso se elimine definitivamente." vertex="1">
+          <mxGeometry height="120" width="760" x="40" y="412" as="geometry" />
+        </mxCell>
+        <mxCell id="n8" parent="1" style="rounded=0;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=8;fontSize=13;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;Reglas de los reportes (solo administradores)&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="790" x="840" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="n9" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;spacingTop=6;fontSize=12;fillColor=#ffffff;strokeColor=#888888;" value="• Trabajan solo con metadatos; nunca leen el contenido de los archivos.&lt;br&gt;• Los reportes de operaciones cuentan únicamente registros con &lt;font face=&quot;Courier New&quot;&gt;status: &quot;success&quot;&lt;/font&gt;.&lt;br&gt;• Los reportes de almacenamiento excluyen archivos eliminados.&lt;br&gt;• Los rankings de compartición incluyen shares manuales y automáticos, salvo el de archivos compartidos con más usuarios, que usa solo manuales.&lt;br&gt;• Los reportes históricos usan &lt;font face=&quot;Courier New&quot;&gt;resourceSnapshot&lt;/font&gt; cuando el recurso ya no existe.&lt;br&gt;• Las fechas se interpretan en la zona &lt;font face=&quot;Courier New&quot;&gt;America/Guatemala&lt;/font&gt; y los rangos son inclusivos.&lt;br&gt;• Ofrecen listados paginados y selectores de usuarios para filtrar por propietario o destinatario." vertex="1">
+          <mxGeometry height="168" width="790" x="840" y="128" as="geometry" />
+        </mxCell>
+        <mxCell id="n10" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=12;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;Etapa&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="180" x="840" y="316" as="geometry" />
+        </mxCell>
+        <mxCell id="n11" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=12;fillColor=#eeeeee;strokeColor=#888888;" value="&lt;b&gt;Uso en los reportes&lt;/b&gt;" vertex="1">
+          <mxGeometry height="28" width="610" x="1020" y="316" as="geometry" />
+        </mxCell>
+        <mxCell id="r0a" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=12;fillColor=#ffffff;strokeColor=#bdbdbd;fontColor=#D9650B;fontStyle=1;" value="&lt;font face=&quot;Courier New&quot;&gt;$match&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="180" x="840" y="344" as="geometry" />
+        </mxCell>
+        <mxCell id="r0b" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=12;fillColor=#ffffff;strokeColor=#bdbdbd;" value="Filtrar por estado, tipo, usuario o rango de fechas" vertex="1">
+          <mxGeometry height="28" width="610" x="1020" y="344" as="geometry" />
+        </mxCell>
+        <mxCell id="r1a" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=12;fillColor=#f7f7f7;strokeColor=#bdbdbd;fontColor=#D9650B;fontStyle=1;" value="&lt;font face=&quot;Courier New&quot;&gt;$group&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="180" x="840" y="372" as="geometry" />
+        </mxCell>
+        <mxCell id="r1b" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=12;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="Contar y sumar métricas" vertex="1">
+          <mxGeometry height="28" width="610" x="1020" y="372" as="geometry" />
+        </mxCell>
+        <mxCell id="r2a" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=12;fillColor=#ffffff;strokeColor=#bdbdbd;fontColor=#D9650B;fontStyle=1;" value="&lt;font face=&quot;Courier New&quot;&gt;$lookup + $unwind&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="180" x="840" y="400" as="geometry" />
+        </mxCell>
+        <mxCell id="r2b" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=12;fillColor=#ffffff;strokeColor=#bdbdbd;" value="Unir archivos y usuarios sin consultas N+1" vertex="1">
+          <mxGeometry height="28" width="610" x="1020" y="400" as="geometry" />
+        </mxCell>
+        <mxCell id="r3a" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=12;fillColor=#f7f7f7;strokeColor=#bdbdbd;fontColor=#D9650B;fontStyle=1;" value="&lt;font face=&quot;Courier New&quot;&gt;$facet&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="180" x="840" y="428" as="geometry" />
+        </mxCell>
+        <mxCell id="r3b" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=12;fillColor=#f7f7f7;strokeColor=#bdbdbd;" value="Obtener datos paginados, total y resumen en una sola consulta" vertex="1">
+          <mxGeometry height="28" width="610" x="1020" y="428" as="geometry" />
+        </mxCell>
+        <mxCell id="r4a" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=12;fillColor=#ffffff;strokeColor=#bdbdbd;fontColor=#D9650B;fontStyle=1;" value="&lt;font face=&quot;Courier New&quot;&gt;$dateTrunc&lt;/font&gt;" vertex="1">
+          <mxGeometry height="28" width="180" x="840" y="456" as="geometry" />
+        </mxCell>
+        <mxCell id="r4b" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=6;fontSize=12;fillColor=#ffffff;strokeColor=#bdbdbd;" value="Agrupar operaciones por día, semana o mes en America/Guatemala" vertex="1">
+          <mxGeometry height="28" width="610" x="1020" y="456" as="geometry" />
+        </mxCell>
+        <mxCell id="n12" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fontSize=11;fillColor=#ffffff;strokeColor=#D9650B;" value="&lt;b&gt;Búsqueda y filtros:&lt;/b&gt; la búsqueda es unificada para archivos y carpetas con los alcances &lt;font face=&quot;Courier New&quot;&gt;own&lt;/font&gt;, &lt;font face=&quot;Courier New&quot;&gt;shared&lt;/font&gt; y &lt;font face=&quot;Courier New&quot;&gt;all&lt;/font&gt;. El alcance &lt;font face=&quot;Courier New&quot;&gt;shared&lt;/font&gt; incluye shares directos y la herencia por &lt;font face=&quot;Courier New&quot;&gt;ancestors&lt;/font&gt;. Los resultados se combinan en Node, se ordenan por nombre y se paginan de forma conjunta; cada uno incluye el permiso efectivo." vertex="1">
+          <mxGeometry height="72" width="790" x="840" y="504" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
