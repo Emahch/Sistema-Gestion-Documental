@@ -155,8 +155,12 @@ export class ShareService {
           status: 'success',
           resourceType: resourceType === 'folder' ? 'folder' : 'file',
           resourceId: doc._id,
-          resourceSnapshot: { name: doc.name },
-          details: { sharedWithId: targetObjectId, permission, origin },
+          resourceSnapshot: {
+            name: doc.name,
+            ownerId: doc.ownerId,
+            ownerEmail: owner?.email ?? null,
+          },
+          details: { sharedWithId: targetObjectId, sharedWithEmail: target.email, permission, origin },
           affectedUserIds: affected,
         });
       const created = !result.lastErrorObject?.updatedExisting;
@@ -211,8 +215,12 @@ export class ShareService {
       status: 'success',
       resourceType: share.resourceType === 'folder' ? 'folder' : 'file',
       resourceId: share.resourceId,
-      resourceSnapshot: { name: resource?.doc.name ?? '' },
-      details: { sharedWithId: share.sharedWithId, permission },
+      resourceSnapshot: {
+        name: resource?.doc.name ?? '',
+        ownerId: share.ownerId,
+        ownerEmail: owner?.email ?? null,
+      },
+      details: { sharedWithId: share.sharedWithId, sharedWithEmail: target?.email ?? null, permission },
       affectedUserIds: affected,
     });
     return toPublicShare(share, resource?.doc.name ?? '', owner?.email ?? '', target?.email ?? '');
@@ -239,6 +247,10 @@ export class ShareService {
       }
     }
     const resource = await this.permissions.findResource(share.resourceType, String(share.resourceId));
+    const [owner, target] = await Promise.all([
+      UserModel.findById(share.ownerId, { email: 1 }).lean(),
+      UserModel.findById(share.sharedWithId, { email: 1 }).lean(),
+    ]);
     await ShareModel.deleteOne({ _id: share._id });
     const affected = await computeAffectedUserIds({
       actorId: ownerId,
@@ -252,8 +264,12 @@ export class ShareService {
       status: 'success',
       resourceType: share.resourceType === 'folder' ? 'folder' : 'file',
       resourceId: share.resourceId,
-      resourceSnapshot: { name: resource?.doc.name ?? '' },
-      details: { sharedWithId: share.sharedWithId },
+      resourceSnapshot: {
+        name: resource?.doc.name ?? '',
+        ownerId: share.ownerId,
+        ownerEmail: owner?.email ?? null,
+      },
+      details: { sharedWithId: share.sharedWithId, sharedWithEmail: target?.email ?? null },
       affectedUserIds: affected,
     });
   }

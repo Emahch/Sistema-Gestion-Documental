@@ -25,6 +25,13 @@ import type {
   UserActivityResult,
 } from '../../models/report.model';
 
+/**
+ * Pestañas:
+ *  '0' Archivos y almacenamiento
+ *  '1' Usuarios
+ *  '2' Compartición
+ *  '3' Actividad
+ */
 @Component({
   selector: 'app-reports',
   standalone: true,
@@ -49,27 +56,31 @@ export class Reports implements OnInit {
   protected readonly users = signal<ReportUser[]>([]);
   protected readonly loadingUsers = signal(false);
 
+  // --- Pestaña 0: Archivos y almacenamiento ---
   protected readonly filesByCategory = signal<FilesByCategoryResult | null>(null);
   protected readonly loadingCat = signal(false);
 
-  protected readonly topUsersByFiles = signal<TopUserByFilesRow[]>([]);
-  protected readonly loadingTopUsers = signal(false);
-
-  protected readonly topUsersByShared = signal<TopUserBySharedRow[]>([]);
-  protected readonly loadingTopSharedUsers = signal(false);
-
-  protected readonly topSharedFiles = signal<TopSharedFileRow[]>([]);
-  protected readonly loadingTopSharedFiles = signal(false);
+  protected readonly filesByDate = signal<FilesByDateResult | null>(null);
+  protected readonly loadingFilesByDate = signal(false);
+  protected readonly filesFrom = signal<Date | null>(this.lastDays(30));
+  protected readonly filesTo = signal<Date | null>(new Date());
+  protected readonly filesPage = signal(1);
 
   protected readonly topFiles = signal<TopFileRow[]>([]);
   protected readonly loadingTopFiles = signal(false);
   protected readonly topFilesFrom = signal<Date | null>(null);
   protected readonly topFilesTo = signal<Date | null>(null);
 
-  protected readonly filesByDate = signal<FilesByDateResult | null>(null);
-  protected readonly loadingFilesByDate = signal(false);
-  protected readonly filesFrom = signal<Date | null>(this.lastDays(30));
-  protected readonly filesTo = signal<Date | null>(new Date());
+  // Usuarios
+  protected readonly topUsersByFiles = signal<TopUserByFilesRow[]>([]);
+  protected readonly loadingTopUsers = signal(false);
+
+  protected readonly topUsersByShared = signal<TopUserBySharedRow[]>([]);
+  protected readonly loadingTopSharedUsers = signal(false);
+
+  // Compartición
+  protected readonly topSharedFiles = signal<TopSharedFileRow[]>([]);
+  protected readonly loadingTopSharedFiles = signal(false);
 
   protected readonly sharedByUser = signal<SharedByUserResult | null>(null);
   protected readonly loadingSharedByUser = signal(false);
@@ -81,6 +92,7 @@ export class Reports implements OnInit {
   protected readonly receivedUserId = signal<string>('');
   protected readonly receivedPage = signal(1);
 
+  // Actividad
   protected readonly userActivity = signal<UserActivityResult | null>(null);
   protected readonly loadingUserActivity = signal(false);
   protected readonly activityUserId = signal<string>('');
@@ -97,13 +109,13 @@ export class Reports implements OnInit {
   protected readonly periodFrom = signal<Date | null>(this.lastDays(30));
   protected readonly periodTo = signal<Date | null>(new Date());
 
+  // Compartido
   protected readonly userOptions = signal<{ label: string; value: string }[]>([]);
   protected readonly activeTab = signal('0');
-  protected readonly filesPage = signal(1);
 
   ngOnInit(): void {
     this.loadUsers();
-    this.loadGeneral();
+    this.loadTab('0');
   }
 
   private lastDays(days: number): Date {
@@ -136,11 +148,11 @@ export class Reports implements OnInit {
         if (!this.receivedUserId() && options.length) this.receivedUserId.set(options[0].value);
         if (!this.activityUserId() && options.length) this.activityUserId.set(options[0].value);
         this.loadingUsers.set(false);
-        if (this.activeTab() === '3') {
+        if (this.activeTab() === '2') {
           this.loadSharedByUser(1);
           this.loadReceivedByUser(1);
         }
-        if (this.activeTab() === '4') {
+        if (this.activeTab() === '3') {
           this.loadUserActivity(1);
         }
       },
@@ -148,63 +160,30 @@ export class Reports implements OnInit {
     });
   }
 
-  private loadGeneral(): void {
-    this.loadingCat.set(true);
-    this.reports.filesByCategory().subscribe({
-      next: (res) => {
-        this.filesByCategory.set(res);
-        this.loadingCat.set(false);
-      },
-      error: () => this.loadingCat.set(false),
-    });
-
-    this.loadingTopUsers.set(true);
-    this.reports.topUsersByFiles().subscribe({
-      next: (res) => {
-        this.topUsersByFiles.set(res);
-        this.loadingTopUsers.set(false);
-      },
-      error: () => this.loadingTopUsers.set(false),
-    });
-
-    this.loadingTopSharedUsers.set(true);
-    this.reports.topUsersByShared({ limit: 10 }).subscribe({
-      next: (res) => {
-        this.topUsersByShared.set(res);
-        this.loadingTopSharedUsers.set(false);
-      },
-      error: () => this.loadingTopSharedUsers.set(false),
-    });
-
-    this.loadingTopSharedFiles.set(true);
-    this.reports.topSharedFiles({ limit: 10 }).subscribe({
-      next: (res) => {
-        this.topSharedFiles.set(res);
-        this.loadingTopSharedFiles.set(false);
-      },
-      error: () => this.loadingTopSharedFiles.set(false),
-    });
-
-  }
-
   protected onTabChange(value: string | number | undefined): void {
     const tab = String(value ?? '0');
     this.activeTab.set(tab);
+    this.loadTab(tab);
+  }
+
+  private loadTab(tab: string): void {
     switch (tab) {
-      case '1':
+      case '0':
+        this.loadFilesByCategory();
         this.loadFilesByDate(1);
-        break;
-      case '2':
         this.loadTopFiles();
         break;
-      case '3':
+      case '1':
+        this.loadTopUsersByFiles();
+        this.loadTopUsersByShared();
+        break;
+      case '2':
+        this.loadTopSharedFiles();
         this.loadSharedByUser(1);
         this.loadReceivedByUser(1);
         break;
-      case '4':
+      case '3':
         this.loadUserActivity(1);
-        break;
-      case '5':
         this.loadOperationsByAction();
         this.loadOperationsByPeriod();
         break;
@@ -213,21 +192,15 @@ export class Reports implements OnInit {
     }
   }
 
-  protected loadTopFiles(): void {
-    this.loadingTopFiles.set(true);
-    this.reports
-      .topFiles({
-        limit: 10,
-        from: this.topFilesFrom() ? this.startOfDay(this.topFilesFrom()!) : undefined,
-        to: this.topFilesTo() ? this.endOfDay(this.topFilesTo()!) : undefined,
-      })
-      .subscribe({
-        next: (res) => {
-          this.topFiles.set(res);
-          this.loadingTopFiles.set(false);
-        },
-        error: () => this.loadingTopFiles.set(false),
-      });
+  protected loadFilesByCategory(): void {
+    this.loadingCat.set(true);
+    this.reports.filesByCategory().subscribe({
+      next: (res) => {
+        this.filesByCategory.set(res);
+        this.loadingCat.set(false);
+      },
+      error: () => this.loadingCat.set(false),
+    });
   }
 
   protected loadFilesByDate(page = 1): void {
@@ -250,6 +223,56 @@ export class Reports implements OnInit {
         },
         error: () => this.loadingFilesByDate.set(false),
       });
+  }
+
+  protected loadTopFiles(): void {
+    this.loadingTopFiles.set(true);
+    this.reports
+      .topFiles({
+        limit: 10,
+        from: this.topFilesFrom() ? this.startOfDay(this.topFilesFrom()!) : undefined,
+        to: this.topFilesTo() ? this.endOfDay(this.topFilesTo()!) : undefined,
+      })
+      .subscribe({
+        next: (res) => {
+          this.topFiles.set(res);
+          this.loadingTopFiles.set(false);
+        },
+        error: () => this.loadingTopFiles.set(false),
+      });
+  }
+
+  protected loadTopUsersByFiles(): void {
+    this.loadingTopUsers.set(true);
+    this.reports.topUsersByFiles().subscribe({
+      next: (res) => {
+        this.topUsersByFiles.set(res);
+        this.loadingTopUsers.set(false);
+      },
+      error: () => this.loadingTopUsers.set(false),
+    });
+  }
+
+  protected loadTopUsersByShared(): void {
+    this.loadingTopSharedUsers.set(true);
+    this.reports.topUsersByShared({ limit: 10 }).subscribe({
+      next: (res) => {
+        this.topUsersByShared.set(res);
+        this.loadingTopSharedUsers.set(false);
+      },
+      error: () => this.loadingTopSharedUsers.set(false),
+    });
+  }
+
+  protected loadTopSharedFiles(): void {
+    this.loadingTopSharedFiles.set(true);
+    this.reports.topSharedFiles({ limit: 10 }).subscribe({
+      next: (res) => {
+        this.topSharedFiles.set(res);
+        this.loadingTopSharedFiles.set(false);
+      },
+      error: () => this.loadingTopSharedFiles.set(false),
+    });
   }
 
   protected loadSharedByUser(page = 1): void {

@@ -8,17 +8,18 @@
 
   <p-tabs [value]="activeTab()" (valueChange)="onTabChange($event)">
     <p-tablist>
-      <p-tab value="0">General</p-tab>
-      <p-tab value="1">Archivos por fecha</p-tab>
-      <p-tab value="2">Archivos con más operaciones</p-tab>
-      <p-tab value="3">Compartidos</p-tab>
-      <p-tab value="4">Historial por usuario</p-tab>
-      <p-tab value="5">Operaciones</p-tab>
+      <p-tab value="0">Archivos y almacenamiento</p-tab>
+      <p-tab value="1">Usuarios</p-tab>
+      <p-tab value="2">Compartición</p-tab>
+      <p-tab value="3">Actividad</p-tab>
     </p-tablist>
     <p-tabpanels>
+      <!-- ============ 0. REPORTES DE ARCHIVOS Y ALMACENAMIENTO ============ -->
       <p-tabpanel value="0">
-        <div class="grid">
-          <p-card header="Archivos por tipo">
+        <div class="stack">
+          <h2 class="section-title">Reportes de archivos y almacenamiento</h2>
+
+          <p-card header="Cantidad de archivos agrupados por tipo">
             <p-table [value]="filesByCategory()?.data || []" [loading]="loadingCat()">
               <ng-template pTemplate="header">
                 <tr>
@@ -44,51 +45,147 @@
             </p-table>
           </p-card>
 
-          <p-card header="Top 10 usuarios por archivos">
-            <p-table [value]="topUsersByFiles()" [loading]="loadingTopUsers()">
+          <p-card header="Archivos almacenados dentro de un rango de fechas">
+            <div class="filters-row">
+              <div class="filter-field">
+                <label>Desde</label>
+                <p-datePicker [ngModel]="filesFrom()" (ngModelChange)="filesFrom.set($event)" [showIcon]="true" dateFormat="dd/mm/yy" />
+              </div>
+              <div class="filter-field">
+                <label>Hasta</label>
+                <p-datePicker [ngModel]="filesTo()" (ngModelChange)="filesTo.set($event)" [showIcon]="true" dateFormat="dd/mm/yy" />
+              </div>
+              <p-button label="Consultar" icon="pi pi-search" (onClick)="loadFilesByDate()" [loading]="loadingFilesByDate()" />
+            </div>
+            @if (filesByDate()) {
+              <p class="summary">Total: {{ filesByDate()!.total }} archivo(s) · {{ formatBytesSize(filesByDate()!.summary.totalBytes) }}</p>
+            }
+            <p-table
+              [value]="filesByDate()?.data || []"
+              [loading]="loadingFilesByDate()"
+              [paginator]="true"
+              [lazy]="true"
+              [rows]="20"
+              [first]="(filesPage() - 1) * 20"
+              [totalRecords]="filesByDate()?.total || 0"
+              (onLazyLoad)="loadFilesByDate(($event.first || 0) / ($event.rows || 20) + 1)"
+            >
               <ng-template pTemplate="header">
                 <tr>
-                  <th>Usuario</th>
-                  <th>Rol</th>
-                  <th>Archivos</th>
+                  <th>Nombre</th>
+                  <th>Tipo</th>
+                  <th>Propietario</th>
                   <th>Tamaño</th>
+                  <th>Creado</th>
                 </tr>
               </ng-template>
               <ng-template pTemplate="body" let-row>
                 <tr>
-                  <td>{{ row.email || row.ownerId }}</td>
-                  <td><p-tag [value]="row.role || '—'" [severity]="row.role === 'admin' ? 'warn' : 'info'" /></td>
-                  <td>{{ row.fileCount | number }}</td>
-                  <td>{{ formatBytesSize(row.totalBytes) }}</td>
+                  <td>{{ row.name }}</td>
+                  <td>{{ row.category }}</td>
+                  <td>{{ row.ownerEmail || row.ownerId }}</td>
+                  <td>{{ formatBytesSize(row.size) }}</td>
+                  <td>{{ row.createdAt | date: 'medium' }}</td>
+                </tr>
+              </ng-template>
+            </p-table>
+          </p-card>
+
+          <p-card header="Archivos con mayor cantidad de operaciones registradas">
+            <div class="filters-row">
+              <div class="filter-field">
+                <label>Desde</label>
+                <p-datePicker [ngModel]="topFilesFrom()" (ngModelChange)="topFilesFrom.set($event)" [showIcon]="true" dateFormat="dd/mm/yy" />
+              </div>
+              <div class="filter-field">
+                <label>Hasta</label>
+                <p-datePicker [ngModel]="topFilesTo()" (ngModelChange)="topFilesTo.set($event)" [showIcon]="true" dateFormat="dd/mm/yy" />
+              </div>
+              <p-button label="Filtrar" icon="pi pi-filter" (onClick)="loadTopFiles()" [loading]="loadingTopFiles()" />
+            </div>
+            <p-table [value]="topFiles()" [loading]="loadingTopFiles()">
+              <ng-template pTemplate="header">
+                <tr>
+                  <th>Archivo</th>
+                  <th>Propietario</th>
+                  <th>Tipo</th>
+                  <th>Operaciones</th>
+                  <th>Última operación</th>
+                  <th>Estado</th>
+                </tr>
+              </ng-template>
+              <ng-template pTemplate="body" let-row>
+                <tr>
+                  <td>{{ row.name }}</td>
+                  <td>{{ row.ownerEmail || '—' }}</td>
+                  <td>{{ row.category || '—' }}</td>
+                  <td>{{ row.operations | number }}</td>
+                  <td>{{ row.lastOperationAt | date: 'medium' }}</td>
+                  <td><p-tag [value]="row.exists ? (row.isDeleted ? 'Eliminado' : 'Activo') : 'No disponible'" [severity]="row.exists && !row.isDeleted ? 'success' : 'warning'" /></td>
                 </tr>
               </ng-template>
             </p-table>
           </p-card>
         </div>
+      </p-tabpanel>
 
-        <div class="grid">
-          <p-card header="Usuarios con más recursos compartidos (manual + auto)">
-            <p-table [value]="topUsersByShared()" [loading]="loadingTopSharedUsers()">
-              <ng-template pTemplate="header">
-                <tr>
-                  <th>Usuario</th>
-                  <th>Recursos distintos</th>
-                  <th>Manual</th>
-                  <th>Automático</th>
-                </tr>
-              </ng-template>
-              <ng-template pTemplate="body" let-row>
-                <tr>
-                  <td>{{ row.email || row.ownerId }}</td>
-                  <td>{{ row.sharedCount | number }}</td>
-                  <td>{{ row.manualCount | number }}</td>
-                  <td>{{ row.autoCount | number }}</td>
-                </tr>
-              </ng-template>
-            </p-table>
-          </p-card>
+      <!-- ============ 1. REPORTES DE USUARIOS ============ -->
+      <p-tabpanel value="1">
+        <div class="stack">
+          <h2 class="section-title">Reportes de usuarios</h2>
 
-          <p-card header="Archivos compartidos con más usuarios (solo manuales)">
+          <div class="grid">
+            <p-card header="Top 10 usuarios con mayor cantidad de archivos almacenados">
+              <p-table [value]="topUsersByFiles()" [loading]="loadingTopUsers()">
+                <ng-template pTemplate="header">
+                  <tr>
+                    <th>Usuario</th>
+                    <th>Rol</th>
+                    <th>Archivos</th>
+                    <th>Tamaño</th>
+                  </tr>
+                </ng-template>
+                <ng-template pTemplate="body" let-row>
+                  <tr>
+                    <td>{{ row.email || row.ownerId }}</td>
+                    <td><p-tag [value]="row.role || '—'" [severity]="row.role === 'admin' ? 'warn' : 'info'" /></td>
+                    <td>{{ row.fileCount | number }}</td>
+                    <td>{{ formatBytesSize(row.totalBytes) }}</td>
+                  </tr>
+                </ng-template>
+              </p-table>
+            </p-card>
+
+            <p-card header="Usuarios con mayor cantidad de recursos compartidos">
+              <p-table [value]="topUsersByShared()" [loading]="loadingTopSharedUsers()">
+                <ng-template pTemplate="header">
+                  <tr>
+                    <th>Usuario</th>
+                    <th>Recursos distintos</th>
+                    <th>Manual</th>
+                    <th>Automático</th>
+                  </tr>
+                </ng-template>
+                <ng-template pTemplate="body" let-row>
+                  <tr>
+                    <td>{{ row.email || row.ownerId }}</td>
+                    <td>{{ row.sharedCount | number }}</td>
+                    <td>{{ row.manualCount | number }}</td>
+                    <td>{{ row.autoCount | number }}</td>
+                  </tr>
+                </ng-template>
+              </p-table>
+            </p-card>
+          </div>
+        </div>
+      </p-tabpanel>
+
+      <!-- ============ 2. REPORTES DE COMPARTICIÓN ============ -->
+      <p-tabpanel value="2">
+        <div class="stack">
+          <h2 class="section-title">Reportes de compartición</h2>
+
+          <p-card header="Archivos compartidos con mayor cantidad de usuarios (solo manuales)">
             <p-table [value]="topSharedFiles()" [loading]="loadingTopSharedFiles()">
               <ng-template pTemplate="header">
                 <tr>
@@ -110,283 +207,201 @@
               </ng-template>
             </p-table>
           </p-card>
-        </div>
-      </p-tabpanel>
 
-      <p-tabpanel value="1">
-        <p-card header="Archivos activos en rango de fechas">
-          <div class="filters-row">
-            <div class="filter-field">
-              <label>Desde</label>
-              <p-datePicker [ngModel]="filesFrom()" (ngModelChange)="filesFrom.set($event)" [showIcon]="true" dateFormat="dd/mm/yy" />
-            </div>
-            <div class="filter-field">
-              <label>Hasta</label>
-              <p-datePicker [ngModel]="filesTo()" (ngModelChange)="filesTo.set($event)" [showIcon]="true" dateFormat="dd/mm/yy" />
-            </div>
-            <p-button label="Consultar" icon="pi pi-search" (onClick)="loadFilesByDate()" [loading]="loadingFilesByDate()" />
-          </div>
-          @if (filesByDate()) {
-            <p class="summary">Total: {{ filesByDate()!.total }} archivo(s) · {{ formatBytesSize(filesByDate()!.summary.totalBytes) }}</p>
-          }
-          <p-table
-            [value]="filesByDate()?.data || []"
-            [loading]="loadingFilesByDate()"
-            [paginator]="true"
-            [lazy]="true"
-            [rows]="20"
-            [first]="(filesPage() - 1) * 20"
-            [totalRecords]="filesByDate()?.total || 0"
-            (onLazyLoad)="loadFilesByDate(($event.first || 0) / ($event.rows || 20) + 1)"
-          >
-            <ng-template pTemplate="header">
-              <tr>
-                <th>Nombre</th>
-                <th>Tipo</th>
-                <th>Propietario</th>
-                <th>Tamaño</th>
-                <th>Creado</th>
-              </tr>
-            </ng-template>
-            <ng-template pTemplate="body" let-row>
-              <tr>
-                <td>{{ row.name }}</td>
-                <td>{{ row.category }}</td>
-                <td>{{ row.ownerEmail || row.ownerId }}</td>
-                <td>{{ formatBytesSize(row.size) }}</td>
-                <td>{{ row.createdAt | date: 'medium' }}</td>
-              </tr>
-            </ng-template>
-          </p-table>
-        </p-card>
-      </p-tabpanel>
-
-      <p-tabpanel value="2">
-        <p-card header="Top archivos por operaciones exitosas">
-          <div class="filters-row">
-            <div class="filter-field">
-              <label>Desde</label>
-              <p-datePicker [ngModel]="topFilesFrom()" (ngModelChange)="topFilesFrom.set($event)" [showIcon]="true" dateFormat="dd/mm/yy" />
-            </div>
-            <div class="filter-field">
-              <label>Hasta</label>
-              <p-datePicker [ngModel]="topFilesTo()" (ngModelChange)="topFilesTo.set($event)" [showIcon]="true" dateFormat="dd/mm/yy" />
-            </div>
-            <p-button label="Filtrar" icon="pi pi-filter" (onClick)="loadTopFiles()" [loading]="loadingTopFiles()" />
-          </div>
-          <p-table [value]="topFiles()" [loading]="loadingTopFiles()">
-            <ng-template pTemplate="header">
-              <tr>
-                <th>Archivo</th>
-                <th>Propietario</th>
-                <th>Tipo</th>
-                <th>Operaciones</th>
-                <th>Última operación</th>
-                <th>Estado</th>
-              </tr>
-            </ng-template>
-            <ng-template pTemplate="body" let-row>
-              <tr>
-                <td>{{ row.name }}</td>
-                <td>{{ row.ownerEmail || '—' }}</td>
-                <td>{{ row.category || '—' }}</td>
-                <td>{{ row.operations | number }}</td>
-                <td>{{ row.lastOperationAt | date: 'medium' }}</td>
-                <td><p-tag [value]="row.exists ? (row.isDeleted ? 'Eliminado' : 'Activo') : 'No disponible'" [severity]="row.exists && !row.isDeleted ? 'success' : 'warning'" /></td>
-              </tr>
-            </ng-template>
-          </p-table>
-        </p-card>
-      </p-tabpanel>
-
-      <p-tabpanel value="3">
-        <div class="grid">
-          <p-card header="Recursos compartidos por usuario">
-            <div class="filters-row">
-              <p-select [options]="userOptions()" [ngModel]="sharedUserId()" (ngModelChange)="sharedUserId.set($event); loadSharedByUser(1)" styleClass="user-select" placeholder="Seleccionar usuario" />
-              <p-button label="Consultar" icon="pi pi-search" (onClick)="loadSharedByUser(1)" [loading]="loadingSharedByUser()" />
-            </div>
-            <p-table
-              [value]="sharedByUser()?.data || []"
-              [loading]="loadingSharedByUser()"
-              [paginator]="true"
-              [lazy]="true"
-              [rows]="20"
-              [first]="(sharedPage() - 1) * 20"
-              [totalRecords]="sharedByUser()?.total || 0"
-              (onLazyLoad)="loadSharedByUser(($event.first || 0) / ($event.rows || 20) + 1)"
-            >
-              <ng-template pTemplate="header">
-                <tr>
-                  <th>Recurso</th>
-                  <th>Tipo</th>
-                  <th>Destinatarios</th>
-                  <th>Origen</th>
-                  <th>Último</th>
-                  <th>Eliminado</th>
-                </tr>
-              </ng-template>
-              <ng-template pTemplate="body" let-row>
-                <tr>
-                  <td>{{ row.name }}</td>
-                  <td>{{ row.resourceType }}</td>
-                  <td>{{ row.recipientCount | number }}</td>
-                  <td>{{ row.origins.join(', ') }}</td>
-                  <td>{{ row.lastSharedAt | date: 'medium' }}</td>
-                  <td><p-tag [value]="row.isDeleted ? 'Sí' : 'No'" [severity]="row.isDeleted ? 'danger' : 'success'" /></td>
-                </tr>
-              </ng-template>
-            </p-table>
-          </p-card>
-
-          <p-card header="Recursos recibidos por usuario">
-            <div class="filters-row">
-              <p-select [options]="userOptions()" [ngModel]="receivedUserId()" (ngModelChange)="receivedUserId.set($event); loadReceivedByUser(1)" styleClass="user-select" placeholder="Seleccionar usuario" />
-              <p-button label="Consultar" icon="pi pi-search" (onClick)="loadReceivedByUser(1)" [loading]="loadingReceivedByUser()" />
-            </div>
-            <p-table
-              [value]="receivedByUser()?.data || []"
-              [loading]="loadingReceivedByUser()"
-              [paginator]="true"
-              [lazy]="true"
-              [rows]="20"
-              [first]="(receivedPage() - 1) * 20"
-              [totalRecords]="receivedByUser()?.total || 0"
-              (onLazyLoad)="loadReceivedByUser(($event.first || 0) / ($event.rows || 20) + 1)"
-            >
-              <ng-template pTemplate="header">
-                <tr>
-                  <th>Recurso</th>
-                  <th>Tipo</th>
-                  <th>Propietario</th>
-                  <th>Permiso</th>
-                  <th>Origen</th>
-                  <th>Compartido</th>
-                </tr>
-              </ng-template>
-              <ng-template pTemplate="body" let-row>
-                <tr>
-                  <td>{{ row.name }}</td>
-                  <td>{{ row.resourceType }}</td>
-                  <td>{{ row.ownerEmail || row.ownerId }}</td>
-                  <td>{{ row.permission }}</td>
-                  <td>{{ row.origin }}</td>
-                  <td>{{ row.sharedAt | date: 'medium' }}</td>
-                </tr>
-              </ng-template>
-            </p-table>
-          </p-card>
-        </div>
-      </p-tabpanel>
-
-      <p-tabpanel value="4">
-        <p-card header="Actividad exitosa en rango de fechas">
-          <div class="filters-row wrap">
-            <p-select [options]="userOptions()" [ngModel]="activityUserId()" (ngModelChange)="activityUserId.set($event)" styleClass="user-select" placeholder="Seleccionar usuario" />
-            <div class="filter-field">
-              <label>Desde</label>
-              <p-datePicker [ngModel]="activityFrom()" (ngModelChange)="activityFrom.set($event)" [showIcon]="true" dateFormat="dd/mm/yy" />
-            </div>
-            <div class="filter-field">
-              <label>Hasta</label>
-              <p-datePicker [ngModel]="activityTo()" (ngModelChange)="activityTo.set($event)" [showIcon]="true" dateFormat="dd/mm/yy" />
-            </div>
-            <p-button label="Consultar" icon="pi pi-search" (onClick)="loadUserActivity(1)" [loading]="loadingUserActivity()" />
-          </div>
-          @if (userActivity()) {
-            <p class="summary">{{ userActivity()!.user.email }} · {{ userActivity()!.total }} registro(s)</p>
-          }
-          <p-table
-            [value]="userActivity()?.data || []"
-            [loading]="loadingUserActivity()"
-            [paginator]="true"
-            [lazy]="true"
-            [rows]="50"
-            [first]="(activityPage() - 1) * 50"
-            [totalRecords]="userActivity()?.total || 0"
-            (onLazyLoad)="loadUserActivity(($event.first || 0) / ($event.rows || 50) + 1)"
-          >
-            <ng-template pTemplate="header">
-              <tr>
-                <th>Fecha</th>
-                <th>Acción</th>
-                <th>Recurso</th>
-                <th>Tipo</th>
-              </tr>
-            </ng-template>
-            <ng-template pTemplate="body" let-row>
-              <tr>
-                <td>{{ row.timestamp | date: 'medium' }}</td>
-                <td>{{ actionLabel(row.action) }} ({{ row.action }})</td>
-                <td>{{ row.resourceSnapshot['name'] || row.resourceId }}</td>
-                <td>{{ row.resourceType }}</td>
-              </tr>
-            </ng-template>
-          </p-table>
-        </p-card>
-      </p-tabpanel>
-
-      <p-tabpanel value="5">
-        <div class="grid">
-          <p-card header="Operaciones por tipo de acción">
-            <p-table [value]="operationsByAction()?.data || []" [loading]="loadingOpsAction()">
-              <ng-template pTemplate="header">
-                <tr>
-                  <th>Acción</th>
-                  <th>Descripción</th>
-                  <th>Cantidad</th>
-                </tr>
-              </ng-template>
-              <ng-template pTemplate="body" let-row>
-                <tr>
-                  <td>{{ row.action }}</td>
-                  <td>{{ actionLabel(row.action) }}</td>
-                  <td>{{ row.count | number }}</td>
-                </tr>
-              </ng-template>
-              <ng-template pTemplate="footer">
-                <tr>
-                  <td colspan="2">Total</td>
-                  <td>{{ (operationsByAction()?.total || 0) | number }}</td>
-                </tr>
-              </ng-template>
-            </p-table>
-          </p-card>
-
-          <p-card header="Operaciones por período ($dateTrunc · America/Guatemala)">
-            <div class="filters-row wrap">
-              <div class="filter-field">
-                <label>Granularidad</label>
-                <p-select [options]="[{label:'Día',value:'day'},{label:'Semana',value:'week'},{label:'Mes',value:'month'}]" [ngModel]="periodGranularity()" (ngModelChange)="periodGranularity.set($event)" />
+          <div class="grid">
+            <p-card header="Recursos compartidos por un usuario seleccionado">
+              <div class="filters-row">
+                <p-select [options]="userOptions()" [ngModel]="sharedUserId()" (ngModelChange)="sharedUserId.set($event); loadSharedByUser(1)" styleClass="user-select" placeholder="Seleccionar usuario" />
+                <p-button label="Consultar" icon="pi pi-search" (onClick)="loadSharedByUser(1)" [loading]="loadingSharedByUser()" />
               </div>
+              <p-table
+                [value]="sharedByUser()?.data || []"
+                [loading]="loadingSharedByUser()"
+                [paginator]="true"
+                [lazy]="true"
+                [rows]="20"
+                [first]="(sharedPage() - 1) * 20"
+                [totalRecords]="sharedByUser()?.total || 0"
+                (onLazyLoad)="loadSharedByUser(($event.first || 0) / ($event.rows || 20) + 1)"
+              >
+                <ng-template pTemplate="header">
+                  <tr>
+                    <th>Recurso</th>
+                    <th>Tipo</th>
+                    <th>Destinatarios</th>
+                    <th>Origen</th>
+                    <th>Último</th>
+                    <th>Eliminado</th>
+                  </tr>
+                </ng-template>
+                <ng-template pTemplate="body" let-row>
+                  <tr>
+                    <td>{{ row.name }}</td>
+                    <td>{{ row.resourceType }}</td>
+                    <td>{{ row.recipientCount | number }}</td>
+                    <td>{{ row.origins.join(', ') }}</td>
+                    <td>{{ row.lastSharedAt | date: 'medium' }}</td>
+                    <td><p-tag [value]="row.isDeleted ? 'Sí' : 'No'" [severity]="row.isDeleted ? 'danger' : 'success'" /></td>
+                  </tr>
+                </ng-template>
+              </p-table>
+            </p-card>
+
+            <p-card header="Recursos recibidos por un usuario seleccionado">
+              <div class="filters-row">
+                <p-select [options]="userOptions()" [ngModel]="receivedUserId()" (ngModelChange)="receivedUserId.set($event); loadReceivedByUser(1)" styleClass="user-select" placeholder="Seleccionar usuario" />
+                <p-button label="Consultar" icon="pi pi-search" (onClick)="loadReceivedByUser(1)" [loading]="loadingReceivedByUser()" />
+              </div>
+              <p-table
+                [value]="receivedByUser()?.data || []"
+                [loading]="loadingReceivedByUser()"
+                [paginator]="true"
+                [lazy]="true"
+                [rows]="20"
+                [first]="(receivedPage() - 1) * 20"
+                [totalRecords]="receivedByUser()?.total || 0"
+                (onLazyLoad)="loadReceivedByUser(($event.first || 0) / ($event.rows || 20) + 1)"
+              >
+                <ng-template pTemplate="header">
+                  <tr>
+                    <th>Recurso</th>
+                    <th>Tipo</th>
+                    <th>Propietario</th>
+                    <th>Permiso</th>
+                    <th>Origen</th>
+                    <th>Compartido</th>
+                  </tr>
+                </ng-template>
+                <ng-template pTemplate="body" let-row>
+                  <tr>
+                    <td>{{ row.name }}</td>
+                    <td>{{ row.resourceType }}</td>
+                    <td>{{ row.ownerEmail || row.ownerId }}</td>
+                    <td>{{ row.permission }}</td>
+                    <td>{{ row.origin }}</td>
+                    <td>{{ row.sharedAt | date: 'medium' }}</td>
+                  </tr>
+                </ng-template>
+              </p-table>
+            </p-card>
+          </div>
+        </div>
+      </p-tabpanel>
+
+      <!-- ============ 3. REPORTES DE ACTIVIDAD ============ -->
+      <p-tabpanel value="3">
+        <div class="stack">
+          <h2 class="section-title">Reportes de actividad</h2>
+
+          <p-card header="Historial de actividad de un usuario dentro de un rango de fechas">
+            <div class="filters-row wrap">
+              <p-select [options]="userOptions()" [ngModel]="activityUserId()" (ngModelChange)="activityUserId.set($event)" styleClass="user-select" placeholder="Seleccionar usuario" />
               <div class="filter-field">
                 <label>Desde</label>
-                <p-datePicker [ngModel]="periodFrom()" (ngModelChange)="periodFrom.set($event)" [showIcon]="true" dateFormat="dd/mm/yy" />
+                <p-datePicker [ngModel]="activityFrom()" (ngModelChange)="activityFrom.set($event)" [showIcon]="true" dateFormat="dd/mm/yy" />
               </div>
               <div class="filter-field">
                 <label>Hasta</label>
-                <p-datePicker [ngModel]="periodTo()" (ngModelChange)="periodTo.set($event)" [showIcon]="true" dateFormat="dd/mm/yy" />
+                <p-datePicker [ngModel]="activityTo()" (ngModelChange)="activityTo.set($event)" [showIcon]="true" dateFormat="dd/mm/yy" />
               </div>
-              <p-button label="Consultar" icon="pi pi-search" (onClick)="loadOperationsByPeriod()" [loading]="loadingOpsPeriod()" />
+              <p-button label="Consultar" icon="pi pi-search" (onClick)="loadUserActivity(1)" [loading]="loadingUserActivity()" />
             </div>
-            @if (operationsByPeriod()) {
-              <p class="summary">Zona horaria: {{ operationsByPeriod()!.timezone }} · Total: {{ operationsByPeriod()!.total | number }}</p>
+            @if (userActivity()) {
+              <p class="summary">{{ userActivity()!.user.email }} · {{ userActivity()!.total }} registro(s)</p>
             }
-            <p-table [value]="operationsByPeriod()?.data || []" [loading]="loadingOpsPeriod()">
+            <p-table
+              [value]="userActivity()?.data || []"
+              [loading]="loadingUserActivity()"
+              [paginator]="true"
+              [lazy]="true"
+              [rows]="50"
+              [first]="(activityPage() - 1) * 50"
+              [totalRecords]="userActivity()?.total || 0"
+              (onLazyLoad)="loadUserActivity(($event.first || 0) / ($event.rows || 50) + 1)"
+            >
               <ng-template pTemplate="header">
                 <tr>
-                  <th>Período</th>
-                  <th>Operaciones</th>
+                  <th>Fecha</th>
+                  <th>Acción</th>
+                  <th>Recurso</th>
+                  <th>Tipo</th>
                 </tr>
               </ng-template>
               <ng-template pTemplate="body" let-row>
                 <tr>
-                  <td>{{ row.period | date: 'medium' }}</td>
-                  <td>{{ row.count | number }}</td>
+                  <td>{{ row.timestamp | date: 'medium' }}</td>
+                  <td>{{ actionLabel(row.action) }} ({{ row.action }})</td>
+                  <td>{{ row.resourceSnapshot['name'] || row.resourceId }}</td>
+                  <td>{{ row.resourceType }}</td>
                 </tr>
               </ng-template>
             </p-table>
           </p-card>
+
+          <div class="grid">
+            <p-card header="Cantidad de operaciones por tipo · Principales acciones del sistema">
+              <p class="summary">Ordenadas de mayor a menor cantidad de operaciones exitosas.</p>
+              <p-table [value]="operationsByAction()?.data || []" [loading]="loadingOpsAction()">
+                <ng-template pTemplate="header">
+                  <tr>
+                    <th>#</th>
+                    <th>Acción</th>
+                    <th>Descripción</th>
+                    <th>Cantidad</th>
+                  </tr>
+                </ng-template>
+                <ng-template pTemplate="body" let-row let-i="rowIndex">
+                  <tr>
+                    <td>{{ i + 1 }}</td>
+                    <td>{{ row.action }}</td>
+                    <td>{{ actionLabel(row.action) }}</td>
+                    <td>{{ row.count | number }}</td>
+                  </tr>
+                </ng-template>
+                <ng-template pTemplate="footer">
+                  <tr>
+                    <td colspan="3">Total</td>
+                    <td>{{ (operationsByAction()?.total || 0) | number }}</td>
+                  </tr>
+                </ng-template>
+              </p-table>
+            </p-card>
+
+            <p-card header="Cantidad de operaciones por período">
+              <div class="filters-row wrap">
+                <div class="filter-field">
+                  <label>Granularidad</label>
+                  <p-select [options]="[{label:'Día',value:'day'},{label:'Semana',value:'week'},{label:'Mes',value:'month'}]" [ngModel]="periodGranularity()" (ngModelChange)="periodGranularity.set($event)" />
+                </div>
+                <div class="filter-field">
+                  <label>Desde</label>
+                  <p-datePicker [ngModel]="periodFrom()" (ngModelChange)="periodFrom.set($event)" [showIcon]="true" dateFormat="dd/mm/yy" />
+                </div>
+                <div class="filter-field">
+                  <label>Hasta</label>
+                  <p-datePicker [ngModel]="periodTo()" (ngModelChange)="periodTo.set($event)" [showIcon]="true" dateFormat="dd/mm/yy" />
+                </div>
+                <p-button label="Consultar" icon="pi pi-search" (onClick)="loadOperationsByPeriod()" [loading]="loadingOpsPeriod()" />
+              </div>
+              @if (operationsByPeriod()) {
+                <p class="summary">Zona horaria: {{ operationsByPeriod()!.timezone }} · Total: {{ operationsByPeriod()!.total | number }}</p>
+              }
+              <p-table [value]="operationsByPeriod()?.data || []" [loading]="loadingOpsPeriod()">
+                <ng-template pTemplate="header">
+                  <tr>
+                    <th>Período</th>
+                    <th>Operaciones</th>
+                  </tr>
+                </ng-template>
+                <ng-template pTemplate="body" let-row>
+                  <tr>
+                    <td>{{ row.period | date: 'medium' }}</td>
+                    <td>{{ row.count | number }}</td>
+                  </tr>
+                </ng-template>
+              </p-table>
+            </p-card>
+          </div>
         </div>
       </p-tabpanel>
     </p-tabpanels>

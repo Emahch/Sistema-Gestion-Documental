@@ -117,12 +117,24 @@ async function ensureUser(userId: Types.ObjectId): Promise<{ id: string; email: 
 
 export class ReportService {
   async filesByCategory() {
-    const data = await FileModel.aggregate<{
+    const data = await ActivityLogModel.aggregate<{
       category: string;
       count: number;
       sizeBytes: number;
     }>([
-      { $match: { isDeleted: false } },
+      { $match: { action: 'UPLOAD', status: 'success' } },
+      {
+        $lookup: {
+          from: 'files', localField: 'resourceId', foreignField: '_id', as: 'file',
+        },
+      },
+      { $unwind: { path: '$file', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          category: { $ifNull: ['$resourceSnapshot.category', { $ifNull: ['$details.category', '$file.category'] }] },
+          size: { $ifNull: ['$resourceSnapshot.size', { $ifNull: ['$details.size', '$file.size'] }] },
+        },
+      },
       {
         $group: {
           _id: '$category',
@@ -146,7 +158,7 @@ export class ReportService {
     const page = toPage(query.page);
     const limit = toLimit(query.limit, 20, 100);
 
-    const [result] = await FileModel.aggregate<{
+    const [result] = await ActivityLogModel.aggregate<{
       data: {
         id: string;
         name: string;
@@ -159,8 +171,14 @@ export class ReportService {
       total: { value: number }[];
       summary: { totalBytes: number }[];
     }>([
-      { $match: { isDeleted: false, createdAt: { $gte: from, $lte: to } } },
-      { $sort: { createdAt: -1 } },
+      { $match: { action: 'UPLOAD', status: 'success', timestamp: { $gte: from, $lte: to } } },
+      { $sort: { timestamp: -1, _id: -1 } },
+      {
+        $lookup: {
+          from: 'files', localField: 'resourceId', foreignField: '_id', as: 'file',
+        },
+      },
+      { $unwind: { path: '$file', preserveNullAndEmptyArrays: true } },
       {
         $facet: {
           data: [
@@ -169,26 +187,47 @@ export class ReportService {
             {
               $lookup: {
                 from: 'users',
-                localField: 'ownerId',
-                foreignField: '_id',
+                let: {
+                  ownerId: {
+                    $ifNull: ['$details.ownerId', { $ifNull: ['$resourceSnapshot.ownerId', '$file.ownerId'] }],
+                  },
+                },
+                pipeline: [{ $match: { $expr: { $eq: ['$_id', '$$ownerId'] } } }, { $project: { email: 1 } }],
                 as: 'owner',
               },
             },
             {
               $project: {
                 _id: 0,
-                id: { $toString: '$_id' },
-                name: 1,
-                category: 1,
-                size: 1,
-                ownerId: { $toString: '$ownerId' },
-                ownerEmail: { $ifNull: [{ $arrayElemAt: ['$owner.email', 0] }, null] },
-                createdAt: 1,
+                id: { $toString: '$resourceId' },
+                name: { $ifNull: ['$resourceSnapshot.name', { $ifNull: ['$file.name', 'Archivo sin nombre'] }] },
+                category: { $ifNull: ['$resourceSnapshot.category', { $ifNull: ['$details.category', '$file.category'] }] },
+                size: { $ifNull: ['$resourceSnapshot.size', { $ifNull: ['$details.size', '$file.size'] }] },
+                ownerId: {
+                  $toString: {
+                    $ifNull: ['$details.ownerId', { $ifNull: ['$resourceSnapshot.ownerId', { $ifNull: ['$file.ownerId', '$userId'] }] }],
+                  },
+                },
+                ownerEmail: {
+                  $ifNull: ['$resourceSnapshot.ownerEmail', { $ifNull: ['$details.ownerEmail', { $ifNull: [{ $arrayElemAt: ['$owner.email', 0] }, null] }] }],
+                },
+                createdAt: '$timestamp',
               },
             },
           ],
           total: [{ $count: 'value' }],
-          summary: [{ $group: { _id: null, totalBytes: { $sum: '$size' } } }],
+          summary: [
+            {
+              $group: {
+                _id: null,
+                totalBytes: {
+                  $sum: {
+                    $ifNull: ['$resourceSnapshot.size', { $ifNull: ['$details.size', '$file.size'] }],
+                  },
+                },
+              },
+            },
+          ],
         },
       },
     ]);
@@ -221,6 +260,9 @@ export class ReportService {
           operations: { $sum: 1 },
           lastOperationAt: { $max: '$timestamp' },
           snapshotName: { $last: '$resourceSnapshot.name' },
+          snapshotCategory: { $last: '$resourceSnapshot.category' },
+          snapshotOwnerId: { $last: '$resourceSnapshot.ownerId' },
+          snapshotOwnerEmail: { $last: '$resourceSnapshot.ownerEmail' },
         },
       },
       { $sort: { operations: -1, _id: 1 } as const },
@@ -237,8 +279,8 @@ export class ReportService {
       {
         $lookup: {
           from: 'users',
-          localField: 'file.ownerId',
-          foreignField: '_id',
+          let: { ownerId: { $ifNull: ['$snapshotOwnerId', '$file.ownerId'] } },
+          pipeline: [{ $match: { $expr: { $eq: ['$_id', '$$ownerId'] } } }, { $project: { email: 1 } }],
           as: 'owner',
         },
       },
@@ -253,8 +295,10 @@ export class ReportService {
           lastOperationAt: 1,
           exists: { $ne: [{ $ifNull: ['$file._id', null] }, null] },
           isDeleted: { $ifNull: ['$file.isDeleted', false] },
-          category: { $ifNull: ['$file.category', null] },
-          ownerEmail: { $ifNull: [{ $arrayElemAt: ['$owner.email', 0] }, null] },
+          category: { $ifNull: ['$snapshotCategory', { $ifNull: ['$file.category', null] }] },
+          ownerEmail: {
+            $ifNull: ['$snapshotOwnerEmail', { $ifNull: [{ $arrayElemAt: ['$owner.email', 0] }, null] }],
+          },
         },
       },
     ] as any[];
@@ -262,7 +306,7 @@ export class ReportService {
   }
 
   async topUsersByFiles() {
-    return FileModel.aggregate<{
+    return ActivityLogModel.aggregate<{
       ownerId: string;
       email: string | null;
       isActive: boolean | null;
@@ -270,12 +314,21 @@ export class ReportService {
       fileCount: number;
       totalBytes: number;
     }>([
-      { $match: { isDeleted: false } },
+      { $match: { action: 'UPLOAD', status: 'success' } },
+      { $sort: { timestamp: 1, _id: 1 } },
+      {
+        $project: {
+          ownerId: { $ifNull: ['$resourceSnapshot.ownerId', { $ifNull: ['$details.ownerId', '$userId'] }] },
+          ownerEmail: { $ifNull: ['$resourceSnapshot.ownerEmail', '$userEmail'] },
+          size: { $ifNull: ['$resourceSnapshot.size', '$details.size'] },
+        },
+      },
       {
         $group: {
           _id: '$ownerId',
           fileCount: { $sum: 1 },
           totalBytes: { $sum: '$size' },
+          historicalEmail: { $last: '$ownerEmail' },
         },
       },
       { $sort: { fileCount: -1, _id: 1 } },
@@ -292,7 +345,7 @@ export class ReportService {
         $project: {
           _id: 0,
           ownerId: { $toString: '$_id' },
-          email: { $ifNull: [{ $arrayElemAt: ['$owner.email', 0] }, null] },
+          email: { $ifNull: ['$historicalEmail', { $ifNull: [{ $arrayElemAt: ['$owner.email', 0] }, null] }] },
           isActive: { $ifNull: [{ $arrayElemAt: ['$owner.isActive', 0] }, null] },
           role: { $ifNull: [{ $arrayElemAt: ['$owner.role', 0] }, null] },
           fileCount: 1,
@@ -304,13 +357,23 @@ export class ReportService {
 
   async topUsersBySharedResources(query: { limit?: unknown }) {
     const limit = toLimit(query.limit, 10, 100);
-    return ShareModel.aggregate<{
+    return ActivityLogModel.aggregate<{
       ownerId: string;
       email: string | null;
       sharedCount: number;
       manualCount: number;
       autoCount: number;
     }>([
+      { $match: { action: 'SHARE', status: 'success' } },
+      {
+        $project: {
+          ownerId: { $ifNull: ['$resourceSnapshot.ownerId', '$userId'] },
+          ownerEmail: { $ifNull: ['$resourceSnapshot.ownerEmail', '$userEmail'] },
+          resourceType: 1,
+          resourceId: 1,
+          origin: { $ifNull: ['$details.origin', 'manual'] },
+        },
+      },
       {
         $group: {
           _id: {
@@ -319,6 +382,7 @@ export class ReportService {
             resourceId: '$resourceId',
           },
           origins: { $addToSet: '$origin' },
+          ownerEmail: { $last: '$ownerEmail' },
         },
       },
       {
@@ -327,6 +391,7 @@ export class ReportService {
           sharedCount: { $sum: 1 },
           manualCount: { $sum: { $cond: [{ $in: ['manual', '$origins'] }, 1, 0] } },
           autoCount: { $sum: { $cond: [{ $in: ['auto', '$origins'] }, 1, 0] } },
+          ownerEmail: { $last: '$ownerEmail' },
         },
       },
       { $sort: { sharedCount: -1, _id: 1 } },
@@ -343,7 +408,7 @@ export class ReportService {
         $project: {
           _id: 0,
           ownerId: { $toString: '$_id' },
-          email: { $ifNull: [{ $arrayElemAt: ['$owner.email', 0] }, null] },
+          email: { $ifNull: ['$ownerEmail', { $ifNull: [{ $arrayElemAt: ['$owner.email', 0] }, null] }] },
           sharedCount: 1,
           manualCount: 1,
           autoCount: 1,
@@ -354,7 +419,7 @@ export class ReportService {
 
   async topSharedFiles(query: { limit?: unknown }) {
     const limit = toLimit(query.limit, 10, 100);
-    return ShareModel.aggregate<{
+    return ActivityLogModel.aggregate<{
       fileId: string;
       name: string;
       sharedWithCount: number;
@@ -362,15 +427,25 @@ export class ReportService {
       isDeleted: boolean;
       lastSharedAt: Date;
     }>([
-      { $match: { resourceType: 'file', origin: 'manual' } },
+      { $match: { action: 'SHARE', status: 'success', resourceType: 'file', 'details.origin': 'manual' } },
+      { $sort: { timestamp: 1, _id: 1 } },
       {
         $group: {
           _id: '$resourceId',
-          sharedWithIds: { $addToSet: '$sharedWithId' },
-          lastSharedAt: { $max: '$createdAt' },
+          sharedWithIds: { $addToSet: '$details.sharedWithId' },
+          lastSharedAt: { $max: '$timestamp' },
+          snapshotName: { $last: '$resourceSnapshot.name' },
+          snapshotOwnerEmail: { $last: '$resourceSnapshot.ownerEmail' },
         },
       },
-      { $project: { sharedWithCount: { $size: '$sharedWithIds' }, lastSharedAt: 1 } },
+      {
+        $project: {
+          sharedWithCount: { $size: '$sharedWithIds' },
+          lastSharedAt: 1,
+          snapshotName: 1,
+          snapshotOwnerEmail: 1,
+        },
+      },
       { $sort: { sharedWithCount: -1, _id: 1 } },
       { $limit: limit },
       {
@@ -394,9 +469,9 @@ export class ReportService {
         $project: {
           _id: 0,
           fileId: { $toString: '$_id' },
-          name: { $ifNull: ['$file.name', 'Archivo no disponible'] },
+          name: { $ifNull: ['$snapshotName', { $ifNull: ['$file.name', 'Archivo no disponible'] }] },
           sharedWithCount: 1,
-          ownerEmail: { $ifNull: [{ $arrayElemAt: ['$owner.email', 0] }, null] },
+          ownerEmail: { $ifNull: ['$snapshotOwnerEmail', { $ifNull: [{ $arrayElemAt: ['$owner.email', 0] }, null] }] },
           isDeleted: { $ifNull: ['$file.isDeleted', false] },
           lastSharedAt: 1,
         },
@@ -413,23 +488,32 @@ export class ReportService {
     const page = toPage(query.page);
     const limit = toLimit(query.limit, 20, 100);
 
-    const [result] = await ShareModel.aggregate<{
+    const [result] = await ActivityLogModel.aggregate<{
       data: {
         resourceType: string;
         resourceId: Types.ObjectId;
         recipientCount: number;
         origins: string[];
         lastSharedAt: Date;
+        snapshotName?: string;
       }[];
       total: { value: number }[];
     }>([
-      { $match: { ownerId: userId } },
+      {
+        $match: {
+          action: 'SHARE',
+          status: 'success',
+          $or: [{ userId }, { 'resourceSnapshot.ownerId': userId }, { 'resourceSnapshot.ownerId': userId.toString() }],
+        },
+      },
+      { $sort: { timestamp: 1, _id: 1 } },
       {
         $group: {
           _id: { resourceType: '$resourceType', resourceId: '$resourceId' },
-          recipientIds: { $addToSet: '$sharedWithId' },
-          origins: { $addToSet: '$origin' },
-          lastSharedAt: { $max: '$createdAt' },
+          recipientIds: { $addToSet: '$details.sharedWithId' },
+          origins: { $addToSet: { $ifNull: ['$details.origin', 'manual'] } },
+          lastSharedAt: { $max: '$timestamp' },
+          snapshotName: { $last: '$resourceSnapshot.name' },
         },
       },
       { $sort: { lastSharedAt: -1, '_id.resourceType': 1, '_id.resourceId': 1 } },
@@ -446,6 +530,7 @@ export class ReportService {
                 recipientCount: { $size: '$recipientIds' },
                 origins: 1,
                 lastSharedAt: 1,
+                snapshotName: 1,
               },
             },
           ],
@@ -468,7 +553,7 @@ export class ReportService {
         return {
           resourceType: row.resourceType,
           resourceId: row.resourceId.toString(),
-          name: name?.name ?? 'Recurso no disponible',
+          name: row.snapshotName ?? name?.name ?? 'Recurso no disponible',
           isDeleted: name?.isDeleted ?? true,
           recipientCount: row.recipientCount,
           origins: row.origins,
@@ -490,43 +575,43 @@ export class ReportService {
     const page = toPage(query.page);
     const limit = toLimit(query.limit, 20, 100);
 
-    const [result] = await ShareModel.aggregate<{
+    const [result] = await ActivityLogModel.aggregate<{
       data: {
         resourceType: string;
         resourceId: Types.ObjectId;
-        ownerId: Types.ObjectId;
+        ownerId: Types.ObjectId | string;
         ownerEmail: string | null;
+        snapshotName?: string;
         permission: string;
         origin: string;
         createdAt: Date;
       }[];
       total: { value: number }[];
     }>([
-      { $match: { sharedWithId: userId } },
-      { $sort: { createdAt: -1, _id: 1 } },
+      {
+        $match: {
+          action: 'SHARE',
+          status: 'success',
+          $or: [{ 'details.sharedWithId': userId }, { 'details.sharedWithId': userId.toString() }],
+        },
+      },
+      { $sort: { timestamp: -1, _id: 1 } },
       {
         $facet: {
           data: [
             { $skip: (page - 1) * limit },
             { $limit: limit },
             {
-              $lookup: {
-                from: 'users',
-                localField: 'ownerId',
-                foreignField: '_id',
-                as: 'owner',
-              },
-            },
-            {
               $project: {
                 _id: 0,
                 resourceType: 1,
                 resourceId: 1,
-                ownerId: 1,
-                ownerEmail: { $ifNull: [{ $arrayElemAt: ['$owner.email', 0] }, null] },
-                permission: 1,
-                origin: 1,
-                createdAt: 1,
+                ownerId: { $ifNull: ['$resourceSnapshot.ownerId', '$userId'] },
+                ownerEmail: { $ifNull: ['$resourceSnapshot.ownerEmail', '$userEmail'] },
+                snapshotName: '$resourceSnapshot.name',
+                permission: '$details.permission',
+                origin: { $ifNull: ['$details.origin', 'manual'] },
+                createdAt: '$timestamp',
               },
             },
           ],
@@ -549,7 +634,7 @@ export class ReportService {
         return {
           resourceType: row.resourceType,
           resourceId: row.resourceId.toString(),
-          name: name?.name ?? 'Recurso no disponible',
+          name: row.snapshotName ?? name?.name ?? 'Recurso no disponible',
           isDeleted: name?.isDeleted ?? true,
           ownerId: row.ownerId.toString(),
           ownerEmail: row.ownerEmail,

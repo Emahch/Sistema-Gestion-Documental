@@ -72,7 +72,7 @@ router.get('/files-by-category', controller.filesByCategory);
  * @openapi
  * /api/reports/files-by-date:
  *   get:
- *     summary: R2 - Archivos almacenados dentro de un rango de fechas (solo admin)
+ *     summary: R2 - Archivos creados dentro de un rango de fechas (solo admin)
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -92,7 +92,7 @@ router.get('/files-by-category', controller.filesByCategory);
  *         schema: { type: integer, default: 20, maximum: 100 }
  *     responses:
  *       200:
- *         description: Archivos activos creados en el rango, con total y bytes
+ *         description: Archivos creados en el rango, con total y bytes; se conservan aunque se eliminen definitivamente
  *       400:
  *         description: Rango de fechas inválido
  *       401:
