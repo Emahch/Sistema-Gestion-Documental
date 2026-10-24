@@ -12,7 +12,10 @@ Aplicación web para la gestión de documentos (.txt, .md) con explorador, papel
 ## Requisitos
 
 - Opción A (con contenedores): Docker Desktop + Docker Compose
-- Opción B (sin Docker): Node.js 20+ y MongoDB 7+
+- Opción B (sin Docker):
+  - Node.js 22 (la misma versión que usan los Dockerfile) y npm
+  - MongoDB Server 7 y MongoDB Shell (`mongosh`), ambos disponibles en el `PATH`
+  - Windows: PowerShell 5.1 o superior. Linux/macOS: bash
 
 ## Inicio rápido (con Docker)
 
@@ -61,70 +64,160 @@ Si aparece "docker no se reconoce", instala Docker Desktop y reinicia terminal/W
 
 ## Ejecución local (sin Docker)
 
-> Esta opción corre API + cliente en tu máquina local.
+Esta opción corre MongoDB, API y cliente directamente. Reproduce la misma configuración que Docker: MongoDB con **autenticación, keyfile y replica set `rs0`** (necesario para transacciones).
 
-El script local crea `api/.env` si todavía no existe. No usa ni modifica el archivo de entorno externo de Docker.
+Se usan 4 terminales:
 
-No sobrescribe `api/.env`. También crea `mongo-data/local/` para los datos de MongoDB local. La plantilla versionada está en [.env.example](.env.example).
+| # | Qué | Dónde |
+|---|-----|-------|
+| 1 | MongoDB (segundo plano) | raíz del proyecto |
+| 2 | Generar `api/.env` + seed | raíz y `api/` |
+| 3 | API | `api/` |
+| 4 | Cliente | `client/` |
 
-### 1) Iniciar MongoDB local
+### 1) Generar `api/.env`
 
-La API usa transacciones en varias operaciones. Para comportamiento completo, ejecuta MongoDB con replica set `rs0`.
+La API lee su configuración desde `api/.env`. El script lo genera a partir del `.env` de la raíz (el mismo que usa Docker). Si no existe, usa `.env.example`, y si tampoco, valores por defecto.
 
-### Opción automática
+Linux / macOS:
+
+```bash
+bash scripts/setup-env.sh
+```
+
+Windows (PowerShell):
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\run-local.ps1 -Install
+powershell -ExecutionPolicy Bypass -File .\scripts\setup-env.ps1
 ```
 
-El script verifica `mongod` y `mongosh`, inicia MongoDB en `mongo-data/local`, espera a que responda, inicializa el replica set y abre API y cliente en terminales separadas.
+- No sobrescribe un `api/.env` existente. Para regenerarlo usa `--force` (bash) o `-Force` (PowerShell).
+- La única diferencia con Docker es el host de MongoDB: en Docker es `mongo`, en local es `127.0.0.1`.
+- El cliente Angular **no usa `.env`**, por eso no se genera ningún archivo para él.
 
-Si MongoDB ya está ejecutándose en `127.0.0.1:27017`, reutiliza ese proceso y solo intenta inicializar el replica set.
-
-### Opción manual: base de datos y replica set
-
-Abre una terminal y ejecuta MongoDB:
-
-```powershell
-New-Item -ItemType Directory -Force .\mongo-data\local
-mongod --dbpath .\mongo-data\local --port 27017 --replSet rs0 --bind_ip 127.0.0.1
-```
-
-Deja esa terminal abierta. En otra terminal, inicializa el replica set una sola vez:
-
-```bash
-mongosh --host 127.0.0.1 --port 27017 --eval "try { rs.status() } catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'127.0.0.1:27017'}]}) }"
-```
-
-Comprueba el estado:
-
-```bash
-mongosh --host 127.0.0.1 --port 27017 --eval "rs.status().ok"
-```
-
-### API local
-
-En otra terminal:
-
-```bash
-cd api
-npm install
-npm run dev
-```
-
-La API carga `api/.env`. Si todavía no existe, créalo copiando [.env.example](.env.example) y agrega al menos:
+Resultado esperado (`api/.env`):
 
 ```dotenv
 NODE_ENV=development
 PORT=3000
-MONGO_URI=mongodb://127.0.0.1:27017/gestion_documental?replicaSet=rs0
-JWT_SECRET=dev-secret
+CLIENT_URL=http://localhost:4200
+MONGO_URI=mongodb://admin:admin123@127.0.0.1:27017/gestion_documental?authSource=admin&replicaSet=rs0&directConnection=true
+JWT_SECRET=dev-secret-cambiar-en-produccion
 JWT_EXPIRES_IN=8h
 ADMIN_EMAIL=admin@docsdrive.local
 ADMIN_PASSWORD=Admin123*
 ```
 
-### Cliente local
+> Si tu contraseña de Mongo tiene caracteres especiales (`@`, `/`, `:`, `%`), el script los codifica automáticamente en la URI.
+
+### 2) Iniciar MongoDB (auth + keyfile + replica set)
+
+Linux / macOS:
+
+```bash
+bash scripts/local-mongo.sh start
+```
+
+Windows (PowerShell):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\local-mongo.ps1 start
+```
+
+Las credenciales, el puerto y el nombre del replica set salen de `MONGO_ROOT_USER`, `MONGO_ROOT_PASSWORD`, `MONGO_PORT` y `MONGO_REPLICA_SET` del `.env` de la raíz.
+
+Qué hace el script (igual que `mongo` + `mongo-init` en `docker-compose.yml`):
+
+1. **Primer arranque únicamente:** inicia `mongod` sin auth ni replica set, crea el usuario `root` y lo apaga.
+2. Genera un keyfile (una sola vez) en `mongo-data/local-auth/keyfile`.
+3. Inicia `mongod` en segundo plano con `--replSet rs0 --keyFile ... --bind_ip 127.0.0.1`.
+4. Ejecuta `rs.initiate(...)` con el host `127.0.0.1:27017` y espera a que el nodo sea PRIMARY.
+
+Es idempotente: si ya está corriendo no hace nada, y en los siguientes arranques solo ejecuta los pasos 3 y 4.
+
+Otros comandos (mismo script, mismos argumentos en `.sh` y `.ps1`):
+
+```bash
+bash scripts/local-mongo.sh status   # ¿está corriendo? ¿replica set ok?
+bash scripts/local-mongo.sh stop     # Detener MongoDB
+bash scripts/local-mongo.sh reset    # BORRA todos los datos locales (pide confirmación)
+```
+
+Datos y logs quedan en `mongo-data/local-auth/` (`db/`, `keyfile`, `mongod.log`).
+
+<details>
+<summary>Equivalente manual (lo que automatiza el script)</summary>
+
+Primer arranque, sin auth, solo para crear el usuario:
+
+```bash
+mkdir -p mongo-data/local-auth/db
+mongod --dbpath mongo-data/local-auth/db --port 27017 --bind_ip 127.0.0.1
+```
+
+En otra terminal:
+
+```bash
+mongosh --port 27017 --eval "db.getSiblingDB('admin').createUser({user:'admin', pwd:'admin123', roles:['root']})"
+mongosh --port 27017 --eval "db.getSiblingDB('admin').shutdownServer()"
+```
+
+Generar el keyfile (Linux/macOS; en Windows genera 756 bytes aleatorios en base64 con PowerShell):
+
+```bash
+head -c 756 /dev/urandom | base64 | tr -d '\n' > mongo-data/local-auth/keyfile
+chmod 400 mongo-data/local-auth/keyfile
+```
+
+Arranque definitivo con replica set y keyfile:
+
+```bash
+mongod --dbpath mongo-data/local-auth/db --port 27017 --bind_ip 127.0.0.1 \
+  --replSet rs0 --keyFile mongo-data/local-auth/keyfile
+```
+
+Inicializar el replica set (una sola vez):
+
+```bash
+mongosh --port 27017 -u admin -p admin123 --authenticationDatabase admin \
+  --eval "rs.initiate({_id:'rs0', members:[{_id:0, host:'127.0.0.1:27017'}]})"
+```
+
+Verificar:
+
+```bash
+mongosh --port 27017 -u admin -p admin123 --authenticationDatabase admin --eval "rs.status().ok"
+```
+
+</details>
+
+### 3) Instalar la API y crear datos iniciales
+
+Desde `api/`, con MongoDB ya corriendo y `api/.env` generado:
+
+```bash
+cd api
+npm install
+npm run db:seed-admin      # Crea/asegura el administrador (usa ADMIN_EMAIL y ADMIN_PASSWORD)
+```
+
+Opcionalmente, datos mínimos de prueba (ver sección [Datos de prueba](#datos-de-prueba-mínimos)):
+
+```bash
+npm run db:seed-minimal
+```
+
+### 4) Iniciar la API
+
+En la misma terminal (`api/`):
+
+```bash
+npm run dev
+```
+
+Arranca con nodemon en http://localhost:3000.
+
+### 5) Iniciar el cliente
 
 En otra terminal:
 
@@ -134,9 +227,21 @@ npm install
 npm start
 ```
 
+Abre http://localhost:4200.
+
+### Orden de inicio (resumen)
+
+1. `setup-env` → genera `api/.env`
+2. `local-mongo start` → MongoDB con replica set
+3. `cd api && npm install && npm run db:seed-admin`
+4. `cd api && npm run dev`
+5. `cd client && npm install && npm start`
+
+Para apagar: `Ctrl+C` en API y cliente, y luego `local-mongo stop`.
+
 ### Seeds y comandos de base de datos
 
-Ejecuta estos comandos desde `api/`, con la API detenida o en otra terminal:
+Ejecuta estos comandos desde `api/` (con MongoDB corriendo y `api/.env` generado):
 
 ```bash
 npm run db:indexes         # Garantizar índices
@@ -154,14 +259,6 @@ npm run db:reset
 npm run db:seed-minimal
 ```
 
-### Inicio local con script
-
-El script instala dependencias si faltan, prepara `api/.env`, inicia MongoDB con replica set y abre API + cliente:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\run-local.ps1 -Install
-```
-
 ### URLs locales
 
 - API: http://localhost:3000
@@ -169,20 +266,48 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run-local.ps1 -Install
 - Health: http://localhost:3000/api/health
 - Cliente: http://localhost:4200
 
+### Problemas comunes (sin Docker)
+
+| Síntoma | Causa y solución |
+|---------|------------------|
+| `'mongod' no está en el PATH` | Instala MongoDB Server 7 y `mongosh`, y reabre la terminal. |
+| `Hay un mongod en el puerto 27017 que no fue iniciado por este script` | Otro MongoDB usa el puerto (en Windows suele ser el servicio `MongoDB`). Detenlo o cambia `MONGO_PORT` en el `.env` de la raíz y regenera con `setup-env --force`. |
+| `Authentication failed` | El usuario root se crea solo la primera vez. Si cambiaste `MONGO_ROOT_USER` o `MONGO_ROOT_PASSWORD` después, ejecuta `local-mongo reset` y vuelve a iniciar. |
+| `not primary` / `NotWritablePrimary` | El replica set no se inicializó o aún no es PRIMARY. Ejecuta `local-mongo status` y revisa `mongo-data/local-auth/mongod.log`. |
+| `Server selection timed out` | Verifica que `api/.env` use `127.0.0.1` y el mismo puerto/replica set que MongoDB. |
+| Error de CORS entre cliente y API | `CLIENT_URL` en `api/.env` debe coincidir con la URL del cliente (`http://localhost:4200`). |
+| `EADDRINUSE` (puerto 3000 o 4200 ocupado) | Cierra el proceso que usa el puerto o cambia `API_PORT`/`CLIENT_PORT` y regenera `api/.env`. |
+
+> Si venías usando una versión anterior del inicio local, sus datos estaban en `mongo-data/local/` (sin autenticación). No son compatibles con este flujo; puedes borrar esa carpeta.
+
 ## Configuración
 
-Para Docker, todas las variables están en el único `.env` de la raíz del proyecto. Para ejecución local, la API usa `api/.env`; ese flujo no utiliza el `.env` de Docker. Datos relevantes:
+- **Docker:** todas las variables están en el único `.env` de la raíz del proyecto; Docker las distribuye a MongoDB, API y cliente.
+- **Local (sin Docker):** el mismo `.env` de la raíz es la fuente de valores. `scripts/setup-env.*` genera `api/.env` a partir de él (cambiando el host de MongoDB a `127.0.0.1`) y `scripts/local-mongo.*` toma de él las credenciales y el puerto de MongoDB.
+
+Datos relevantes:
 - `MONGO_URI` con replica set (`rs0`) para habilitar transacciones
 - `JWT_SECRET`, `JWT_EXPIRES_IN=8h`
 - `ADMIN_EMAIL`, `ADMIN_PASSWORD` para el seed
+
+El `.env` y `api/.env` no deben subirse al repositorio; la plantilla versionada es [.env.example](.env.example).
 
 ## Datos de prueba (mínimos)
 
 Para dejar la BD con datos mínimos para probar el sistema completo:
 
+Con Docker:
+
 ```bash
 docker compose exec api npm run db:reset
 docker compose exec api npm run db:seed-minimal
+```
+
+Sin Docker (desde `api/`):
+
+```bash
+npm run db:reset
+npm run db:seed-minimal
 ```
 
 Credenciales (todos los usuarios creados por el seed):
@@ -195,8 +320,16 @@ Contenido generado: carpetas, archivos `.txt/.md` en GridFS, un share manual (Ju
 
 ## Usuario administrador inicial
 
+Con Docker:
+
 ```bash
 docker compose exec api npm run db:seed-admin
+```
+
+Sin Docker (desde `api/`):
+
+```bash
+npm run db:seed-admin
 ```
 
 Credenciales por defecto (desarrollo): `admin@docsdrive.local` / `Admin123*`
@@ -205,12 +338,11 @@ Credenciales por defecto (desarrollo): `admin@docsdrive.local` / `Admin123*`
 
 En la raíz del proyecto (`scripts/`):
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\run-docker.ps1   # Levanta stack Docker
-powershell -ExecutionPolicy Bypass -File .\scripts\run-local.ps1 -Install  # Arranque local sin Docker
-```
-
-Para Docker, utiliza únicamente el archivo `.env` de la raíz del proyecto. El script `run-docker.ps1` lo valida y lo pasa explícitamente a Compose:
+| Script | Para qué |
+|--------|----------|
+| `run-docker.ps1` | Levanta el stack Docker (valida el `.env` de la raíz y lo pasa a Compose) |
+| `setup-env.sh` / `setup-env.ps1` | Genera `api/.env` para ejecución sin Docker |
+| `local-mongo.sh` / `local-mongo.ps1` | MongoDB local con auth + keyfile + replica set (`start`, `stop`, `status`, `reset`) |
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\run-docker.ps1
@@ -241,14 +373,8 @@ npm run db:cleanup-gridfs  # Limpiar objetos huérfanos de GridFS
 - Vista previa inline para TXT/MD (sin registrar actividad)
 - Reportes administrativos con agregaciones MongoDB
 
-## Documentación
-
-- Decisiones técnicas: [docs/decisions.md](docs/decisions.md)
-- Esquema/índices: [docs/erd.md](docs/erd.md)
-- Planificación: ver archivo local indicado en el proyecto
-
 ## Notas
 
-- Las transacciones requieren replica set. El entorno Docker ya lo configura.
+- Las transacciones requieren replica set. El entorno Docker y los scripts de ejecución local ya lo configuran.
 - GridFS no participa en transacciones: metadata y contenido se manejan por separado.
 - Los reportes son exclusivos de administradores y usan solo metadatos.
