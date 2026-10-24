@@ -36,11 +36,10 @@
         ariaLabel="Alternar vista de lista y cuadrícula"
         (onClick)="layout.set(layout() === 'list' ? 'grid' : 'list')"
       />
-      @if (canWriteCurrent()) {
-        <p-button label="Nueva carpeta" icon="pi pi-plus" (onClick)="openCreate()" />
-        <p-button label="Subir archivo" icon="pi pi-upload" severity="secondary" [loading]="uploading()" (onClick)="fileInput.click()" />
-        <input #fileInput type="file" accept=".txt,.md" hidden (change)="onFileSelected($event)" />
-      }
+      <p-button label="Nueva carpeta" icon="pi pi-plus" (onClick)="openCreate()" [disabled]="!canWriteCurrent()" />
+      <p-button label="Nuevo archivo" icon="pi pi-file-plus" severity="secondary" (onClick)="openNewFile()" [disabled]="!canWriteCurrent()" />
+      <p-button label="Subir archivo" icon="pi pi-upload" severity="secondary" [loading]="uploading()" (onClick)="fileInput.click()" [disabled]="!canWriteCurrent()" />
+      <input #fileInput type="file" accept=".txt,.md" hidden (change)="onFileSelected($event)" />
     </div>
   </div>
 
@@ -84,7 +83,7 @@
     <div class="error-banner">{{ uploadError() }}</div>
   }
 
-  @if (uploading() || replacing()) {
+  @if (uploading()) {
     <p-progressbar [value]="uploadPercent()" />
   }
 
@@ -194,22 +193,7 @@
   </ng-template>
 </p-dialog>
 
-<p-dialog header="Reemplazar contenido" [(visible)]="showReplace" [modal]="true" [style]="{ width: '26rem' }">
-  <div class="form-grid">
-    <p>Se reemplazará el contenido de <strong>{{ replaceTarget()?.name }}</strong>. La versión anterior se descarta.</p>
-    <label for="rep-file">Archivo nuevo (.txt, .md) *</label>
-    <input id="rep-file" type="file" accept=".txt,.md" (change)="onReplaceSelected($event)" />
-    @if (replacing()) {
-      <p-progressbar [value]="uploadPercent()" />
-    }
-    @if (replaceError()) {
-      <p class="form-error">{{ replaceError() }}</p>
-    }
-  </div>
-  <ng-template #footer>
-    <p-button label="Cerrar" (onClick)="showReplace.set(false)" />
-  </ng-template>
-</p-dialog>
+
 
 <app-permissions-dialog
   [(visible)]="showPermissions"
@@ -218,8 +202,4 @@
   [resourceName]="permTarget()?.name ?? ''"
 />
 
-<app-file-preview-dialog
-  [(visible)]="showPreview"
-  [fileId]="previewTarget()?.id ?? ''"
-  [fileName]="previewTarget()?.name ?? ''"
-/>
+<app-file-editor-dialog />

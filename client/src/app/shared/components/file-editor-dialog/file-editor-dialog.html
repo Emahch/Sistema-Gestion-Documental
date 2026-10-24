@@ -1,0 +1,41 @@
+<p-dialog
+  [(visible)]="visible"
+  [modal]="true"
+  [draggable]="false"
+  [resizable]="false"
+  [style]="{ width: 'min(1200px, 98vw)', height: 'min(92vh, 950px)' }"
+  [contentStyle]="{ height: 'calc(92vh - 140px)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }"
+  [header]="mode() === 'create' ? 'Nuevo archivo' : 'Editar archivo — ' + fileName()"
+  (onHide)="close()"
+>
+  <div class="editor-header">
+    @if (mode() === 'create') {
+      <div class="field">
+        <label>Nombre del archivo (.txt o .md)</label>
+        <input pInputText [(ngModel)]="createName" placeholder="ejemplo.txt o ejemplo.md" />
+      </div>
+    } @else {
+      <div class="field">
+        <label>Nombre del archivo (.txt o .md)</label>
+        <input pInputText [(ngModel)]="createName" placeholder="ejemplo.txt o ejemplo.md" />
+      </div>
+    }
+    <div class="hint">El contenido se guarda en UTF-8. Puedes cambiar el nombre/extensión al guardar.</div>
+    @if (error()) {
+      <div class="error">{{ error() }}</div>
+    }
+  </div>
+  <div class="editor-body">
+    <textarea
+      class="editor-textarea"
+      [(ngModel)]="content"
+      spellcheck="false"
+      autocorrect="off"
+      autocapitalize="off"
+    ></textarea>
+  </div>
+  <ng-template #footer>
+    <p-button label="Cancelar" severity="secondary" (onClick)="close()" [disabled]="saving()" />
+    <p-button [label]="mode() === 'create' ? 'Crear' : 'Guardar'" icon="pi pi-save" (onClick)="save()" [loading]="saving()" />
+  </ng-template>
+</p-dialog>

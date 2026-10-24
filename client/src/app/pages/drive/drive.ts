@@ -22,7 +22,7 @@ import {
   DriveViewItem,
 } from '../../shared/components/drive-view/drive-view';
 import { PermissionsDialog } from '../../shared/components/permissions-dialog/permissions-dialog';
-import { FilePreviewDialog } from '../../shared/components/file-preview-dialog/file-preview-dialog';
+import { FileEditorDialog } from '../../shared/components/file-editor-dialog/file-editor-dialog';
 import type { DriveFile, DriveFolder } from '../../models/folder.model';
 import { formatBytes } from '../../shared/format';
 
@@ -35,7 +35,7 @@ import { formatBytes } from '../../shared/format';
     DatePickerModule,
     DialogModule,
     DriveView,
-    FilePreviewDialog,
+    FileEditorDialog,
     InputTextModule,
     MenuModule,
     PermissionsDialog,
@@ -80,6 +80,7 @@ export class Drive implements OnInit {
 
   protected readonly canWriteCurrent = computed(() => {
     const folder = this.currentFolder();
+    console.log(folder);
     return !folder || folder.permission === 'owner' || folder.permission === 'edit';
   });
 
@@ -152,16 +153,10 @@ export class Drive implements OnInit {
   protected readonly moveFileTarget = signal<DriveFile | null>(null);
   protected readonly showMoveFile = signal(false);
 
-  protected readonly replaceTarget = signal<DriveFile | null>(null);
-  protected readonly showReplace = signal(false);
-  protected readonly replaceError = signal<string | null>(null);
-  protected readonly replacing = signal(false);
-
   protected readonly permTarget = signal<{ kind: 'file' | 'folder'; id: string; name: string } | null>(null);
   protected readonly showPermissions = signal(false);
 
-  protected readonly previewTarget = signal<DriveFile | null>(null);
-  protected readonly showPreview = signal(false);
+  @ViewChild(FileEditorDialog) protected editor!: FileEditorDialog;
 
   protected readonly breadcrumb = computed<MenuItem[]>(() =>
     this.crumbs().map((folder, index, chain) =>
@@ -354,6 +349,10 @@ export class Drive implements OnInit {
   }
 
   protected openCreate(): void {
+    if (!this.canWriteCurrent()) {
+      this.error.set('No tienes permiso para crear carpetas en esta carpeta.');
+      return;
+    }
     this.newName.set('');
     this.createError.set(null);
     this.showCreate.set(true);
@@ -536,14 +535,13 @@ export class Drive implements OnInit {
     }
     const file = item.data as DriveFile;
     const actions: DriveViewAction[] = [
-      { id: 'preview', icon: 'pi pi-eye', label: 'Vista previa', severity: 'secondary' },
+      { id: 'preview', icon: 'pi pi-eye', label: 'Abrir / Editar', severity: 'secondary' },
       { id: 'download', icon: 'pi pi-download', label: 'Descargar archivo', severity: 'secondary' },
       { id: 'history', icon: 'pi pi-history', label: 'Historial', severity: 'secondary' },
     ];
     if (this.canEdit(file)) {
       actions.push({ id: 'rename', icon: 'pi pi-pencil', label: 'Renombrar archivo', severity: 'secondary' });
       actions.push({ id: 'move', icon: 'pi pi-send', label: 'Mover archivo', severity: 'secondary' });
-      actions.push({ id: 'replace', icon: 'pi pi-file-edit', label: 'Reemplazar contenido', severity: 'secondary' });
     }
     if (this.isOwner(file.ownerId)) {
       actions.push({ id: 'permissions', icon: 'pi pi-users', label: 'Administrar permisos', severity: 'secondary' });
@@ -562,7 +560,7 @@ export class Drive implements OnInit {
       this.openFolder(item.id);
       return;
     }
-    this.downloadFile(item);
+    this.openEditorFile(item.data as DriveFile);
   }
 
   protected onViewAction(event: { item: DriveViewItem; actionId: string }): void {
@@ -586,15 +584,17 @@ export class Drive implements OnInit {
     }
     const file = item.data as DriveFile;
     if (actionId === 'preview') {
-      this.openPreview(file);
+      this.openEditorFile(file);
+    } else if (actionId === 'edit') {
+      this.openEditorItem(item);
+    } else if (actionId === 'open') {
+      this.openEditorFile(file);
     } else if (actionId === 'history') {
       this.openHistory(item);
     } else if (actionId === 'rename') {
       this.openRenameFile(file);
     } else if (actionId === 'move') {
       this.openMoveFile(file);
-    } else if (actionId === 'replace') {
-      this.openReplace(file);
     } else if (actionId === 'download') {
       this.downloadFile(item);
     } else if (actionId === 'trash') {
@@ -645,7 +645,7 @@ export class Drive implements OnInit {
 
   private fileMenu(file: DriveFile): MenuItem[] {
     const items: MenuItem[] = [
-      { label: 'Vista previa', icon: 'pi pi-eye', command: () => this.openPreview(file) },
+      { label: 'Abrir / Editar', icon: 'pi pi-file-edit', command: () => this.openEditorFile(file) },
       { label: 'Descargar', icon: 'pi pi-download', command: () => this.downloadById(file) },
       { label: 'Historial', icon: 'pi pi-history', command: () => this.router.navigate(['/activity'], { queryParams: { resourceType: 'file', resourceId: file.id } }) },
     ];
@@ -653,7 +653,6 @@ export class Drive implements OnInit {
       items.push(
         { label: 'Renombrar', icon: 'pi pi-pencil', command: () => this.openRenameFile(file) },
         { label: 'Mover', icon: 'pi pi-send', command: () => this.openMoveFile(file) },
-        { label: 'Reemplazar contenido', icon: 'pi pi-file-edit', command: () => this.openReplace(file) },
       );
     }
     if (this.isOwner(file.ownerId)) {
@@ -726,8 +725,7 @@ export class Drive implements OnInit {
   }
 
   protected openPreview(file: DriveFile): void {
-    this.previewTarget.set(file);
-    this.showPreview.set(true);
+    this.openEditorFile(file);
   }
 
   protected openHistory(item: DriveViewItem): void {
@@ -830,46 +828,41 @@ export class Drive implements OnInit {
     });
   }
 
-  protected openReplace(file: DriveFile): void {
-    this.replaceTarget.set(file);
-    this.replaceError.set(null);
-    this.showReplace.set(true);
+  protected openEditorItem(item: DriveViewItem): void {
+    if (item.kind !== 'file') return;
+    this.openEditorFile(item.data as DriveFile);
   }
 
-  protected onReplaceSelected(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    input.value = '';
-    const target = this.replaceTarget();
-    if (!file || !target) {
+  protected openEditorFile(file: DriveFile): void {
+    const ext = file.name.toLowerCase();
+    if (!ext.endsWith('.txt') && !ext.endsWith('.md')) {
+      this.error.set('Solo se pueden editar archivos .txt o .md.');
       return;
     }
-    this.replacing.set(true);
-    this.uploadPercent.set(0);
-    this.replaceError.set(null);
-    this.foldersApi.editContent(target.id, file).subscribe({
-      next: (event) => {
-        if (event.type === HttpEventType.UploadProgress) {
-          const total = event.total ?? file.size;
-          this.uploadPercent.set(total ? Math.round((event.loaded / total) * 100) : 0);
-        } else if (event.type === HttpEventType.Response) {
-          this.replacing.set(false);
-          this.uploadPercent.set(0);
-          this.showReplace.set(false);
-          this.reload();
-        }
+    this.foldersApi.previewFile(file.id).subscribe({
+      next: (text) => {
+        this.editor.openEdit(file.id, file.name, text);
       },
       error: (err: { status?: number }) => {
-        this.replaceError.set(
-          err?.status === 413
-            ? 'El archivo excede tu cuota disponible.'
-            : err?.status === 400
-              ? 'Archivo inválido (solo .txt y .md en UTF-8).'
-              : 'No se pudo reemplazar el contenido.'
+        this.error.set(
+          err?.status === 403
+            ? 'No tienes permiso para editar este archivo.'
+            : 'No se pudo cargar el contenido para editar.'
         );
-        this.replacing.set(false);
-        this.uploadPercent.set(0);
       },
     });
+  }
+
+  protected openNewFile(): void {
+    if (!this.canWriteCurrent()) {
+      this.error.set('No tienes permiso para crear archivos en esta carpeta.');
+      return;
+    }
+    const folderId = this.currentFolder()?.id ?? this.currentId();
+    if (!folderId) {
+      this.error.set('Selecciona una carpeta donde puedas crear archivos.');
+      return;
+    }
+    this.editor.openCreate(folderId);
   }
 }

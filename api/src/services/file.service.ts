@@ -289,18 +289,20 @@ export class FileService {
   async editContent(userId: string, id: string, req: Request): Promise<PublicFile> {
     const file = await this.accessibleFile(userId, id, 'edit');
     const uploaded = await parseUpload(req);
-    const currentExtension = path.extname(file.name).toLowerCase();
-    const uploadedExtension = path.extname(uploaded.filename).toLowerCase();
-    if (currentExtension !== uploadedExtension) {
-      await deleteGridFsObject(uploaded.gridFsId);
-      throw new BadRequestError(
-        `El archivo de reemplazo debe conservar la extensión ${currentExtension || '(sin extensión)'}`
-      );
+    const previousGridFsId = file.gridFsId;
+    const previousSize = file.size;
+    const previousName = file.name;
+    const cleanName = uploaded.filename.trim();
+    const nameNormalized = normalizeName(cleanName);
+    if (nameNormalized !== file.nameNormalized) {
+      const exists = await FileModel.findOne({ folderId: file.folderId, ownerId: file.ownerId, isDeleted: false, nameNormalized, _id: { $ne: file._id } });
+      if (exists) {
+        await deleteGridFsObject(uploaded.gridFsId);
+        throw new ConflictError('Ya existe un archivo con ese nombre');
+      }
     }
     const session = await mongoose.startSession();
     const actorUser = await UserModel.findById(userId, { email: 1 }).lean().catch(() => null);
-    const previousGridFsId = file.gridFsId;
-    const previousSize = file.size;
     try {
       let updated: HydratedDocument<File> | undefined;
       await session.withTransaction(async () => {
@@ -315,7 +317,14 @@ export class FileService {
         }
         const fresh = await FileModel.findByIdAndUpdate(
           file._id,
-          { gridFsId: uploaded.gridFsId, size: uploaded.size },
+          {
+            gridFsId: uploaded.gridFsId,
+            size: uploaded.size,
+            name: cleanName,
+            nameNormalized,
+            mimeType: uploaded.mimeType,
+            category: uploaded.category,
+          },
           { new: true, session }
         );
         if (!fresh) {
@@ -337,8 +346,8 @@ export class FileService {
               status: 'success',
               resourceType: 'file',
               resourceId: file._id,
-              resourceSnapshot: { name: file.name },
-              details: { previousGridFsId, newGridFsId: uploaded.gridFsId, previousSize, newSize: uploaded.size },
+              resourceSnapshot: { name: cleanName },
+              details: { previousGridFsId, newGridFsId: uploaded.gridFsId, previousSize, newSize: uploaded.size, previousName },
               affectedUserIds: affected,
             },
           ],
@@ -354,6 +363,9 @@ export class FileService {
       await deleteGridFsObject(uploaded.gridFsId);
       if (err instanceof HttpError) {
         throw err;
+      }
+      if (err instanceof Error && 'code' in err && (err as { code: number }).code === 11000) {
+        throw new ConflictError('Ya existe un archivo con ese nombre');
       }
       throw err;
     } finally {

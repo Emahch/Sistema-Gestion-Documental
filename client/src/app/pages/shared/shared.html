@@ -43,11 +43,7 @@
   [resourceName]="permTarget()?.name ?? ''"
 />
 
-<app-file-preview-dialog
-  [(visible)]="showPreview"
-  [fileId]="previewTarget()?.id ?? ''"
-  [fileName]="previewTarget()?.name ?? ''"
-/>
+<app-file-editor-dialog />
 
 <p-dialog header="Renombrar" [visible]="showRename()" [modal]="true" [style]="{ width: '380px' }" (visibleChange)="showRename.set($event)">
   <div class="dialog-form">
@@ -77,18 +73,4 @@
   </ng-template>
 </p-dialog>
 
-<p-dialog header="Reemplazar contenido" [visible]="showReplace()" [modal]="true" [style]="{ width: '420px' }" (visibleChange)="showReplace.set($event)">
-  <div class="dialog-form">
-    <p class="text">Selecciona un archivo .txt o .md (UTF-8). Debe conservar la extensión.</p>
-    <input type="file" accept=".txt,.md" (change)="onReplaceSharedSelected($event)" [disabled]="replacing()" />
-    @if (replacing()) {
-      <p-progressBar [value]="uploadPercent()" />
-    }
-    @if (replaceError()) {
-      <small class="error">{{ replaceError() }}</small>
-    }
-  </div>
-  <ng-template pTemplate="footer">
-    <p-button label="Cerrar" [text]="true" (onClick)="showReplace.set(false)" [disabled]="replacing()" />
-  </ng-template>
-</p-dialog>
+

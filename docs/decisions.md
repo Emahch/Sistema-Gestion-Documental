@@ -81,3 +81,13 @@ Esquema e índices en vivo: [erd.md](./erd.md) (generado con `npm run db:diagram
 - El tema claro/oscuro es manual mediante la clase `.app-dark` y se persiste en `localStorage`.
 - La vista de explorador, compartidos y papelera reutiliza el componente `app-drive-view`.
 - La vista previa reutiliza `app-file-preview-dialog` y escapa el contenido automáticamente con Angular.
+
+## Cierre
+
+### Funcionalidades propias de MongoDB usadas
+- **Replica set + transacciones:** habilitados para operaciones atómicas entre colecciones.
+- **GridFS:** almacenamiento binario fuera de las colecciones de documentos, con borrado manual.
+- **Aggregation pipeline:** usado en reportes con `$match`, `$group`, `$sort`, `$project`, `$lookup`, `$unwind`, `$facet` y `$dateTrunc` (zona `America/Guatemala`).
+- **Índices compuestos y parciales:** con prefijo de igualdad, `partialFilterExpression` y unicidad condicional.
+- **Denormalización:** `resourceSnapshot` en logs, `ancestors` en carpetas y emails cacheados cuando necesario.
+- **ObjectId:** claves y relaciones entre colecciones.

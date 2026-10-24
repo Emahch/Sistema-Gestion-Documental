@@ -16,7 +16,7 @@ import { ShareService } from '../../core/share.service';
 import { FolderService } from '../../core/folder.service';
 import { DriveView, DriveViewItem } from '../../shared/components/drive-view/drive-view';
 import { PermissionsDialog } from '../../shared/components/permissions-dialog/permissions-dialog';
-import { FilePreviewDialog } from '../../shared/components/file-preview-dialog/file-preview-dialog';
+import { FileEditorDialog } from '../../shared/components/file-editor-dialog/file-editor-dialog';
 import type { ShareItem } from '../../models/share.model';
 
 interface SharedGroup {
@@ -43,10 +43,11 @@ interface ActionTarget {
     ConfirmDialogModule,
     DialogModule,
     DriveView,
-    FilePreviewDialog,
+    FileEditorDialog,
     InputTextModule,
     MenuModule,
     PermissionsDialog,
+    FileEditorDialog,
     ProgressBarModule,
     SelectModule,
   ],
@@ -142,16 +143,12 @@ export class Shared implements OnInit {
   protected readonly moveError = signal<string | null>(null);
   protected readonly moving = signal(false);
 
-  protected readonly replaceTarget = signal<{ id: string; name: string } | null>(null);
   protected readonly showReplace = signal(false);
-  protected readonly replaceError = signal<string | null>(null);
-  protected readonly replacing = signal(false);
   protected readonly uploadPercent = signal(0);
 
   protected readonly trashTarget = signal<ActionTarget | null>(null);
 
-  protected readonly previewTarget = signal<{ id: string; name: string } | null>(null);
-  protected readonly showPreview = signal(false);
+  @ViewChild(FileEditorDialog) protected editor!: FileEditorDialog;
 
   constructor(
     private sharesApi: ShareService,
@@ -189,11 +186,16 @@ export class Shared implements OnInit {
   }
 
   protected activateItem(item: DriveViewItem): void {
-    if (this.mode() === 'by-me') {
-      this.openSharedItem(item);
+    const target = this.resolveTarget(item);
+    if (target.kind === 'folder') {
+      if (this.mode() === 'by-me') {
+        this.openSharedItem(item);
+        return;
+      }
+      this.openWithMeItem(item);
       return;
     }
-    this.openWithMeItem(item);
+    this.openEditorShared(item);
   }
 
   private resolveTarget(item: DriveViewItem): ActionTarget {
@@ -307,45 +309,28 @@ export class Shared implements OnInit {
     });
   }
 
-  protected openReplaceShared(item: DriveViewItem): void {
+  protected openEditorShared(item: DriveViewItem): void {
     const target = this.resolveTarget(item);
-    if (!target.canEdit || target.kind !== 'file') return;
-    this.replaceTarget.set({ id: target.id, name: target.name });
-    this.replaceError.set(null);
-    this.showReplace.set(true);
-  }
-
-  protected onReplaceSharedSelected(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    input.value = '';
-    const target = this.replaceTarget();
-    if (!file || !target) return;
-    this.replacing.set(true);
-    this.uploadPercent.set(0);
-    this.replaceError.set(null);
-    this.foldersApi.editContent(target.id, file).subscribe({
-      next: (evt) => {
-        if (evt.type === HttpEventType.UploadProgress) {
-          const total = evt.total ?? file.size;
-          this.uploadPercent.set(total ? Math.round((evt.loaded / total) * 100) : 0);
-        } else if (evt.type === HttpEventType.Response) {
-          this.replacing.set(false);
-          this.uploadPercent.set(0);
-          this.showReplace.set(false);
-          this.reload();
+    if (target.kind !== 'file') return;
+    const ext = target.name.toLowerCase();
+    if (!ext.endsWith('.txt') && !ext.endsWith('.md')) {
+      this.error.set('Solo se pueden editar archivos .txt o .md.');
+      return;
+    }
+    this.foldersApi.previewFile(target.id).subscribe({
+      next: (text) => {
+        if (target.canEdit) {
+          this.editor.openEdit(target.id, target.name, text);
+        } else {
+          this.editor.openEdit(target.id, target.name, text);
         }
       },
       error: (err: { status?: number }) => {
-        this.replaceError.set(
-          err?.status === 413
-            ? 'El archivo excede tu cuota disponible.'
-            : err?.status === 400
-              ? 'Archivo inválido. Debe conservar la extensión y ser .txt o .md en UTF-8.'
-              : 'No se pudo reemplazar el contenido.'
+        this.error.set(
+          err?.status === 403
+            ? 'No tienes permiso para editar este archivo.'
+            : 'No se pudo cargar el contenido para editar.'
         );
-        this.replacing.set(false);
-        this.uploadPercent.set(0);
       },
     });
   }
@@ -421,12 +406,7 @@ export class Shared implements OnInit {
     });
   }
 
-  protected openPreviewShared(item: DriveViewItem): void {
-    const target = this.resolveTarget(item);
-    if (target.kind !== 'file') return;
-    this.previewTarget.set({ id: target.id, name: target.name });
-    this.showPreview.set(true);
-  }
+ 
 
   protected openItemMenu(event: MouseEvent, item: DriveViewItem): void {
     event.stopPropagation();
@@ -441,20 +421,19 @@ export class Shared implements OnInit {
       },
     ];
     if (!isFolder) {
-      items.push({ label: 'Vista previa', icon: 'pi pi-eye', command: () => this.openPreviewShared(item) });
+      items.push({ label: 'Abrir / Editar', icon: 'pi pi-file-edit', command: () => this.openEditorShared(item) });
+    } else {
+      items.push({
+        label: 'Abrir',
+        icon: 'pi pi-folder-open',
+        command: () => (this.mode() === 'by-me' ? this.openSharedItem(item) : this.openWithMeItem(item)),
+      });
     }
     if (target.canEdit) {
       items.push(
         { label: 'Renombrar', icon: 'pi pi-pencil', command: () => this.openRenameShared(item) },
         { label: 'Mover', icon: 'pi pi-send', command: () => this.openMoveShared(item) },
       );
-      if (!isFolder) {
-        items.push({
-          label: 'Reemplazar contenido',
-          icon: 'pi pi-file-edit',
-          command: () => this.openReplaceShared(item),
-        });
-      }
     }
     if (target.isOwner) {
       items.push({
