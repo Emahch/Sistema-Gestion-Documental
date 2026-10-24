@@ -10,7 +10,10 @@
     "typecheck": "tsc --noEmit",
     "db:indexes": "ts-node --transpile-only src/scripts/ensure-indexes.ts",
     "db:diagram": "ts-node --transpile-only src/scripts/db-diagram.ts",
-    "db:seed-admin": "ts-node --transpile-only src/scripts/seed-admin.ts"
+    "db:seed-admin": "ts-node --transpile-only src/scripts/seed-admin.ts",
+    "db:cleanup-gridfs": "ts-node --transpile-only src/scripts/cleanup-gridfs-orphans.ts",
+    "db:seed-minimal": "ts-node --transpile-only src/scripts/seed-minimal.ts",
+    "db:reset": "ts-node --transpile-only src/scripts/reset-db.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
