@@ -1,0 +1,181 @@
+<mxfile host="app.diagrams.net" pages="2">
+  <diagram name="DD-01 Despliegue Docker" id="bsmyCfrD1c41gnQyO-6Z">
+    <mxGraphModel dx="1704" dy="1001" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1810" pageHeight="980" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="n2" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=24;fontColor=#222222;" value="&lt;b&gt;Diagrama de despliegue con Docker Compose&lt;/b&gt;" vertex="1">
+          <mxGeometry height="36" width="1500" x="40" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="n3" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=13;fontColor=#666666;" value="docker compose up --build -d  ·  .env en la raíz distribuido a mongo, api y client  ·  puertos publicados 4200, 3000 y 27017" vertex="1">
+          <mxGeometry height="24" width="1500" x="40" y="58" as="geometry" />
+        </mxCell>
+        <mxCell id="n4" parent="1" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;fontSize=12;fillColor=#f5f5f5;strokeColor=#777777;rounded=0;" value="«device»&lt;br&gt;&lt;b&gt;Equipo del usuario&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Windows / macOS / Linux&lt;/font&gt;" vertex="1">
+          <mxGeometry height="330" width="380" x="40" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="n5" parent="n4" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;fontSize=12;fillColor=#e6e6e6;strokeColor=#777777;rounded=0;" value="«execution environment»&lt;br&gt;&lt;b&gt;Navegador web&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Chrome, Edge, Firefox…&lt;/font&gt;" vertex="1">
+          <mxGeometry height="230" width="320" x="30" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="n6" parent="n5" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fontSize=11;fillColor=#ffffff;strokeColor=#888888;rounded=0;" value="«artifact»&lt;br&gt;&lt;b&gt;SPA Angular 21 + PrimeNG&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Se descarga desde :4200 y consume la API REST&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="260" x="30" y="90" as="geometry" />
+        </mxCell>
+        <mxCell id="n7" parent="1" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;fontSize=12;fillColor=#f5f5f5;strokeColor=#777777;rounded=0;" value="«device»&lt;br&gt;&lt;b&gt;Host Docker&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Docker Desktop / Docker Engine + Compose  ·  red por defecto del proyecto&lt;/font&gt;" vertex="1">
+          <mxGeometry height="820" width="1230" x="520" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="n8" parent="n7" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;fontSize=12;fillColor=#e6e6e6;strokeColor=#777777;rounded=0;" value="«container»&lt;br&gt;&lt;b&gt;sgd-client&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;node:22-alpine · puerto 4200&lt;/font&gt;" vertex="1">
+          <mxGeometry height="360" width="290" x="40" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="n9" parent="n8" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fontSize=11;fillColor=#ffffff;strokeColor=#888888;rounded=0;" value="«artifact»&lt;br&gt;&lt;b&gt;Angular dev server&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;npm run start -- --host 0.0.0.0 --port 4200 --poll 2000&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="250" x="20" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="n10" parent="n8" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fontSize=11;fillColor=#ffffff;strokeColor=#D9650B;rounded=0;" value="«artifact»&lt;br&gt;&lt;b&gt;«volume» client-node-modules&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;/app/node_modules&lt;/font&gt;" vertex="1">
+          <mxGeometry height="50" width="250" x="20" y="170" as="geometry" />
+        </mxCell>
+        <mxCell id="n11" parent="n8" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fontSize=11;fillColor=#ffffff;strokeColor=#D9650B;rounded=0;" value="«artifact»&lt;br&gt;&lt;b&gt;bind mounts&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;./client/src, ./client/public, angular.json, tsconfig*.json&lt;/font&gt;" vertex="1">
+          <mxGeometry height="70" width="250" x="20" y="230" as="geometry" />
+        </mxCell>
+        <mxCell id="n12" parent="n7" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;fontSize=12;fillColor=#e6e6e6;strokeColor=#777777;rounded=0;" value="«container»&lt;br&gt;&lt;b&gt;sgd-api&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;node:22-alpine · puerto 3000&lt;/font&gt;" vertex="1">
+          <mxGeometry height="360" width="310" x="420" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="n13" parent="n12" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fontSize=11;fillColor=#ffffff;strokeColor=#888888;rounded=0;" value="«artifact»&lt;br&gt;&lt;b&gt;Express + Mongoose (TypeScript)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;nodemon --legacy-watch src/server.ts  ·  /api/docs  ·  /api/health&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="270" x="20" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="n14" parent="n12" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fontSize=11;fillColor=#ffffff;strokeColor=#D9650B;rounded=0;" value="«artifact»&lt;br&gt;&lt;b&gt;«volume» api-node-modules&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;/usr/src/app/node_modules&lt;/font&gt;" vertex="1">
+          <mxGeometry height="50" width="270" x="20" y="170" as="geometry" />
+        </mxCell>
+        <mxCell id="n15" parent="n12" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fontSize=11;fillColor=#ffffff;strokeColor=#D9650B;rounded=0;" value="«artifact»&lt;br&gt;&lt;b&gt;bind mounts&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;./api/src, package.json, nodemon.json, tsconfig.json, ./docs&lt;/font&gt;" vertex="1">
+          <mxGeometry height="70" width="270" x="20" y="230" as="geometry" />
+        </mxCell>
+        <mxCell id="n16" parent="n7" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;fontSize=12;fillColor=#e6e6e6;strokeColor=#777777;rounded=0;" value="«container»&lt;br&gt;&lt;b&gt;sgd-mongo&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;mongo:7 · puerto 27017 · healthcheck mongosh ping&lt;/font&gt;" vertex="1">
+          <mxGeometry height="360" width="340" x="850" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="n17" parent="n16" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fontSize=11;fillColor=#ffffff;strokeColor=#888888;rounded=0;" value="«artifact»&lt;br&gt;&lt;b&gt;mongod 7 (replica set rs0)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;--replSet rs0 --keyFile /etc/mongo-key/keyfile --bind_ip_all&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="300" x="20" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="n18" parent="n16" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fontSize=11;fillColor=#ffffff;strokeColor=#D9650B;rounded=0;" value="«artifact»&lt;br&gt;&lt;b&gt;«volume» mongo-data&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;/data/db&lt;/font&gt;" vertex="1">
+          <mxGeometry height="50" width="300" x="20" y="170" as="geometry" />
+        </mxCell>
+        <mxCell id="n19" parent="n16" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fontSize=11;fillColor=#ffffff;strokeColor=#D9650B;rounded=0;" value="«artifact»&lt;br&gt;&lt;b&gt;«volume» mongo-key&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;/etc/mongo-key — el keyfile se genera una vez con openssl&lt;/font&gt;" vertex="1">
+          <mxGeometry height="70" width="300" x="20" y="230" as="geometry" />
+        </mxCell>
+        <mxCell id="n20" parent="n7" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;fontSize=12;fillColor=#e6e6e6;strokeColor=#777777;rounded=0;" value="«container»&lt;br&gt;&lt;b&gt;sgd-mongo-init&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;mongo:7 · one-shot · restart: &quot;no&quot;&lt;/font&gt;" vertex="1">
+          <mxGeometry height="190" width="340" x="850" y="520" as="geometry" />
+        </mxCell>
+        <mxCell id="n21" parent="n20" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fontSize=11;fillColor=#ffffff;strokeColor=#888888;rounded=0;" value="«artifact»&lt;br&gt;&lt;b&gt;script mongosh&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;rs.initiate({ _id: rs0, members: [ mongo:27017 ] }) con reintentos (hasta 30)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="300" x="20" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="n22" edge="1" parent="1" source="n5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;fontSize=11;labelBackgroundColor=#ffffff;exitX=1;exitY=0.3;entryX=0;entryY=0.3;" target="n8" value="HTTP :4200">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n23" edge="1" parent="1" source="n5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;fontSize=11;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;entryX=0.5;entryY=1;" target="n12" value="HTTP REST + JWT :3000">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="230" y="600" />
+              <mxPoint x="1095" y="600" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n24" edge="1" parent="1" source="n12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;fontSize=11;labelBackgroundColor=#ffffff;exitX=1;exitY=0.3;entryX=0;entryY=0.3;" target="n16" value="MongoDB :27017  (replicaSet=rs0, auth)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n25" edge="1" parent="1" source="n20" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;fontSize=11;labelBackgroundColor=#ffffff;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" target="n16" value="rs.initiate">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n26" parent="1" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fontSize=11;fillColor=#ffffff;strokeColor=#D9650B;rounded=0;" value="&lt;b&gt;Orden de arranque (depends_on):&lt;/b&gt; mongo (healthy) → mongo-init (completed_successfully) → api (healthy: GET /api/health) → client.&lt;br&gt;&lt;b&gt;Variables:&lt;/b&gt; el .env de la raíz se pasa a los contenedores con env_file; en api, MONGO_URI se sobrescribe con el host &quot;mongo&quot;. CLIENT_URL = http://localhost:${CLIENT_PORT}.&lt;br&gt;&lt;b&gt;Persistencia:&lt;/b&gt; mongo-data y mongo-key sobreviven a &lt;font face=&quot;Courier New&quot;&gt;docker compose down&lt;/font&gt;; &lt;font face=&quot;Courier New&quot;&gt;down -v&lt;/font&gt; los elimina." vertex="1">
+          <mxGeometry height="98" width="780" x="540" y="680" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="DD-02 Despliegue manual" id="SYFzmM-t9DlCD18lbX3P">
+    <mxGraphModel dx="1683" dy="989" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1740" pageHeight="1010" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="n2" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=24;fontColor=#222222;" value="&lt;b&gt;Diagrama de despliegue sin Docker (ejecución local)&lt;/b&gt;" vertex="1">
+          <mxGeometry height="36" width="1500" x="40" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="n3" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=13;fontColor=#666666;" value="Un solo equipo con Node.js 22 y MongoDB 7 en 127.0.0.1  ·  scripts/setup-env.* y scripts/local-mongo.*" vertex="1">
+          <mxGeometry height="24" width="1500" x="40" y="58" as="geometry" />
+        </mxCell>
+        <mxCell id="n4" parent="1" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;fontSize=12;fillColor=#f5f5f5;strokeColor=#777777;rounded=0;" value="«device»&lt;br&gt;&lt;b&gt;Equipo de desarrollo o servidor&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Windows / Linux / macOS&lt;/font&gt;" vertex="1">
+          <mxGeometry height="840" width="1640" x="40" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="n5" parent="n4" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;fontSize=12;fillColor=#e6e6e6;strokeColor=#777777;rounded=0;" value="«execution environment»&lt;br&gt;&lt;b&gt;Navegador web&lt;/b&gt;" vertex="1">
+          <mxGeometry height="220" width="300" x="30" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="n6" parent="n5" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fontSize=11;fillColor=#ffffff;strokeColor=#888888;rounded=0;" value="«artifact»&lt;br&gt;&lt;b&gt;SPA Angular 21 + PrimeNG&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;http://localhost:4200&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="240" x="30" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="n7" parent="n4" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;fontSize=12;fillColor=#e6e6e6;strokeColor=#777777;rounded=0;" value="«execution environment»&lt;br&gt;&lt;b&gt;Node.js 22 · proceso client&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;cd client &amp;amp;&amp;amp; npm install &amp;amp;&amp;amp; npm start&lt;/font&gt;" vertex="1">
+          <mxGeometry height="280" width="300" x="430" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="n8" parent="n7" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fontSize=11;fillColor=#ffffff;strokeColor=#888888;rounded=0;" value="«artifact»&lt;br&gt;&lt;b&gt;Angular dev server&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;ng serve · puerto 4200&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="240" x="30" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="n9" parent="n4" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;fontSize=12;fillColor=#e6e6e6;strokeColor=#777777;rounded=0;" value="«execution environment»&lt;br&gt;&lt;b&gt;Node.js 22 · proceso api&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;cd api &amp;amp;&amp;amp; npm install &amp;amp;&amp;amp; npm run dev&lt;/font&gt;" vertex="1">
+          <mxGeometry height="280" width="330" x="830" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="n10" parent="n9" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fontSize=11;fillColor=#ffffff;strokeColor=#888888;rounded=0;" value="«artifact»&lt;br&gt;&lt;b&gt;Express + Mongoose&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;nodemon src/server.ts · puerto 3000&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="270" x="30" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="n11" parent="n9" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fontSize=11;fillColor=#ffffff;strokeColor=#D9650B;rounded=0;" value="«artifact»&lt;br&gt;&lt;b&gt;api/.env&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;PORT, MONGO_URI, JWT_*, CLIENT_URL, ADMIN_*&lt;/font&gt;" vertex="1">
+          <mxGeometry height="70" width="270" x="30" y="170" as="geometry" />
+        </mxCell>
+        <mxCell id="n12" parent="n4" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;fontSize=12;fillColor=#e6e6e6;strokeColor=#777777;rounded=0;" value="«execution environment»&lt;br&gt;&lt;b&gt;mongod 7 · proceso MongoDB&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;127.0.0.1:27017 · auth + keyFile + replica set&lt;/font&gt;" vertex="1">
+          <mxGeometry height="280" width="340" x="1260" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="n13" parent="n12" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fontSize=11;fillColor=#ffffff;strokeColor=#888888;rounded=0;" value="«artifact»&lt;br&gt;&lt;b&gt;mongod&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;--replSet rs0 --keyFile mongo-data/local-auth/keyfile --bind_ip 127.0.0.1&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="280" x="30" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="n14" parent="n4" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;fontSize=12;fillColor=#f5f5f5;strokeColor=#777777;rounded=0;" value="«device»&lt;br&gt;&lt;b&gt;Disco local&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;mongo-data/local-auth/&lt;/font&gt;" vertex="1">
+          <mxGeometry height="290" width="340" x="1260" y="490" as="geometry" />
+        </mxCell>
+        <mxCell id="n15" parent="n14" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fontSize=11;fillColor=#ffffff;strokeColor=#D9650B;rounded=0;" value="«artifact»&lt;br&gt;&lt;b&gt;db/&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;archivos de datos (dbpath)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="46" width="300" x="20" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="n16" parent="n14" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fontSize=11;fillColor=#ffffff;strokeColor=#D9650B;rounded=0;" value="«artifact»&lt;br&gt;&lt;b&gt;keyfile&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;generado una sola vez&lt;/font&gt;" vertex="1">
+          <mxGeometry height="46" width="300" x="20" y="125" as="geometry" />
+        </mxCell>
+        <mxCell id="n17" parent="n14" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fontSize=11;fillColor=#ffffff;strokeColor=#D9650B;rounded=0;" value="«artifact»&lt;br&gt;&lt;b&gt;mongod.log&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;logs de mongod&lt;/font&gt;" vertex="1">
+          <mxGeometry height="46" width="300" x="20" y="180" as="geometry" />
+        </mxCell>
+        <mxCell id="n18" parent="n14" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fontSize=11;fillColor=#ffffff;strokeColor=#D9650B;rounded=0;" value="«artifact»&lt;br&gt;&lt;b&gt;.initialized&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;marca: usuario root ya creado&lt;/font&gt;" vertex="1">
+          <mxGeometry height="46" width="300" x="20" y="235" as="geometry" />
+        </mxCell>
+        <mxCell id="n19" parent="n4" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;fontSize=12;fillColor=#f5f5f5;strokeColor=#777777;rounded=0;" value="«device»&lt;br&gt;&lt;b&gt;scripts/ (en la raíz del proyecto)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Linux/macOS: bash · Windows: PowerShell&lt;/font&gt;" vertex="1">
+          <mxGeometry height="290" width="730" x="430" y="490" as="geometry" />
+        </mxCell>
+        <mxCell id="n20" parent="n19" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fontSize=11;fillColor=#ffffff;strokeColor=#888888;rounded=0;" value="«artifact»&lt;br&gt;&lt;b&gt;setup-env.sh / setup-env.ps1&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;lee el .env de la raíz y genera api/.env (--force / -Force para regenerar)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="330" x="20" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="n21" parent="n19" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fontSize=11;fillColor=#ffffff;strokeColor=#888888;rounded=0;" value="«artifact»&lt;br&gt;&lt;b&gt;local-mongo.sh / local-mongo.ps1&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;start | stop | status | reset · crea root, keyfile y rs.initiate&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="330" x="380" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="n22" parent="n19" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fontSize=11;fillColor=#ffffff;strokeColor=#D9650B;rounded=0;" value="«artifact»&lt;br&gt;&lt;b&gt;.env  (raíz)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;misma fuente de valores que usa Docker: MONGO_ROOT_USER/PASSWORD, MONGO_REPLICA_SET, MONGO_PORT, JWT_SECRET…&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="690" x="20" y="180" as="geometry" />
+        </mxCell>
+        <mxCell id="n23" edge="1" parent="1" source="n5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;fontSize=11;labelBackgroundColor=#ffffff;exitX=1;exitY=0.3;entryX=0;entryY=0.3;" target="n7" value="HTTP :4200">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n24" edge="1" parent="1" source="n5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;fontSize=11;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;entryX=0.5;entryY=1;" target="n9" value="HTTP REST + JWT :3000">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="260" y="560" />
+              <mxPoint x="1035" y="560" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n25" edge="1" parent="1" source="n9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;fontSize=11;labelBackgroundColor=#ffffff;exitX=1;exitY=0.3;entryX=0;entryY=0.3;" target="n12" value="MongoDB :27017 (auth, rs0)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n26" edge="1" parent="1" source="n12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;fontSize=11;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" target="n14" value="dbpath · keyFile · logpath">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n27" edge="1" parent="1" source="n19" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;dashed=1;fontSize=11;labelBackgroundColor=#ffffff;exitX=0.5;exitY=0;entryX=0.2;entryY=1;" target="n9" value="genera">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
