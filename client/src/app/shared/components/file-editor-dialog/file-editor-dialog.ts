@@ -19,6 +19,7 @@ export class FileEditorDialog {
   readonly fileId = model<string>('');
   readonly fileName = model<string>('');
   readonly folderId = model<string | null>(null);
+  readonly readOnly = model(false);
 
   protected readonly content = signal('');
   protected readonly createName = signal('');
@@ -30,6 +31,7 @@ export class FileEditorDialog {
     this.fileId.set('');
     this.fileName.set('');
     this.folderId.set(folderId);
+    this.readOnly.set(false);
     this.content.set('');
     this.createName.set('nuevo.txt');
     this.error.set(null);
@@ -37,10 +39,15 @@ export class FileEditorDialog {
   }
 
   openEdit(fileId: string, fileName: string, content: string) {
+    this.openPreview(fileId, fileName, content, false);
+  }
+
+  openPreview(fileId: string, fileName: string, content: string, readOnly = true) {
     this.mode.set('edit');
     this.fileId.set(fileId);
     this.fileName.set(fileName);
     this.folderId.set(null);
+    this.readOnly.set(readOnly);
     this.content.set(content);
     this.createName.set(fileName);
     this.error.set(null);
@@ -48,6 +55,9 @@ export class FileEditorDialog {
   }
 
   save() {
+    if (this.readOnly()) {
+      return;
+    }
     this.saving.set(true);
     this.error.set(null);
     if (this.mode() === 'create') {

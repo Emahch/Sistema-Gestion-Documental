@@ -4,7 +4,7 @@ import { mongoose } from '../config/db';
 import { UserModel } from '../models/user.model';
 import { FolderModel } from '../models/folder.model';
 import { FileModel } from '../models/file.model';
-import { ActivityLogModel } from '../models/activity-log.model';
+import { createActivityLog } from '../utils/activity-log';
 import { normalizeEmail, normalizeName, isValidEmail } from '../utils/normalize';
 import type { CreateUserInput, ListUsersQuery, PagedUsers, PublicUser, User } from '../types/user';
 import { BadRequestError, ConflictError, HttpError, NotFoundError } from '../errors/http-error';
@@ -100,24 +100,16 @@ export class UserService {
           ],
           { session, ordered: true }
         );
-        const actorUser = actorId
-          ? await UserModel.findById(actorId, { email: 1 }).lean().catch(() => null)
-          : created.email;
-        await ActivityLogModel.create(
-          [
-            {
-              userId: actorId || created._id,
-              userEmail: typeof actorUser === 'string' ? actorUser : (actorUser?.email ?? created.email),
-              action: 'USER_CREATE',
-              status: 'success',
-              resourceType: 'user',
-              resourceId: created._id,
-              resourceSnapshot: { email: created.email },
-              affectedUserIds: [],
-            },
-          ],
-          { session, ordered: true }
-        );
+        await createActivityLog({
+          actorId: actorId || created._id,
+          action: 'USER_CREATE',
+          status: 'success',
+          resourceType: 'user',
+          resourceId: created._id,
+          resourceSnapshot: { email: created.email },
+          affectedUserIds: [],
+          session,
+        });
       });
       if (!created) {
         throw new HttpError(500, 'No se pudo crear el usuario');
@@ -192,12 +184,8 @@ export class UserService {
     }
     target.isActive = isActive;
     await target.save();
-    const actorUser = actorId
-      ? await UserModel.findById(actorId, { email: 1 }).lean().catch(() => null)
-      : null;
-    await ActivityLogModel.create({
-      userId: actorId || target._id,
-      userEmail: actorUser?.email ?? null,
+    await createActivityLog({
+      actorId: actorId || target._id,
       action: 'USER_STATUS_CHANGE',
       status: 'success',
       resourceType: 'user',
@@ -224,12 +212,8 @@ export class UserService {
     const previous = target.storage.quotaBytes ?? null;
     target.storage.quotaBytes = quotaBytes;
     await target.save();
-    const actorUser = actorId
-      ? await UserModel.findById(actorId, { email: 1 }).lean().catch(() => null)
-      : null;
-    await ActivityLogModel.create({
-      userId: actorId || target._id,
-      userEmail: actorUser?.email ?? null,
+    await createActivityLog({
+      actorId: actorId || target._id,
       action: 'QUOTA_CHANGE',
       status: 'success',
       resourceType: 'user',

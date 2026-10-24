@@ -3,12 +3,14 @@ import { Readable } from 'stream';
 import mongoose from 'mongoose';
 import { connectDB } from '../config/db';
 import { FolderModel } from '../models/folder.model';
+import { FileModel } from '../models/file.model';
+import { ShareModel } from '../models/share.model';
 import { UserModel } from '../models/user.model';
 import { UserService } from '../services/user.service';
 import { FolderService } from '../services/folder.service';
 import { FileService } from '../services/file.service';
 import { ShareService } from '../services/share.service';
-import { normalizeEmail } from '../utils/normalize';
+import { normalizeEmail, normalizeName } from '../utils/normalize';
 import bcrypt from 'bcryptjs';
 
 const USER_PASS = 'User123*';
@@ -39,6 +41,30 @@ function buildMultipart(filename: string, content: string, folderId: string) {
 
 async function ensureUserDoc(email: string) {
   return UserModel.findOne({ emailNormalized: normalizeEmail(email) });
+}
+
+async function ensureFolder(ownerId: string, parentId: string, name: string, folderService: FolderService): Promise<string> {
+  const existing = await FolderModel.findOne({ ownerId, parentId, nameNormalized: normalizeName(name), isDeleted: false });
+  if (existing) {
+    return existing._id.toString();
+  }
+  const created = await folderService.createFolder(ownerId, parentId, name);
+  return created.id;
+}
+
+async function ensureFile(
+  ownerId: string,
+  folderId: string,
+  name: string,
+  content: string,
+  fileService: FileService
+): Promise<string> {
+  const existing = await FileModel.findOne({ ownerId, folderId, nameNormalized: normalizeName(name), isDeleted: false });
+  if (existing) {
+    return existing._id.toString();
+  }
+  const created = await fileService.uploadFile(ownerId, buildMultipart(name, content, folderId));
+  return created.id;
 }
 
 async function main() {
@@ -81,23 +107,61 @@ async function main() {
   const rootMaria = await FolderModel.findOne({ ownerId: mariaDoc!._id, isRoot: true, isDeleted: false });
   const rootAdmin = await FolderModel.findOne({ ownerId: admin._id, isRoot: true, isDeleted: false });
 
-  const docs = await folderService.createFolder(juanDoc!._id.toString(), rootJuan!._id.toString(), 'Documentos');
-  const proyectos = await folderService.createFolder(juanDoc!._id.toString(), docs.id, 'Proyectos');
-  const informes = await folderService.createFolder(mariaDoc!._id.toString(), rootMaria!._id.toString(), 'Informes');
+  const juanId = juanDoc!._id.toString();
+  const mariaId = mariaDoc!._id.toString();
+  const adminUserId = admin._id.toString();
+  const docsId = await ensureFolder(juanId, rootJuan!._id.toString(), 'Documentos', folderService);
+  const proyectosId = await ensureFolder(juanId, docsId, 'Proyectos', folderService);
+  const informesId = await ensureFolder(mariaId, rootMaria!._id.toString(), 'Informes', folderService);
 
-  const req1 = buildMultipart('README.md', '# Proyecto\n\nDatos mínimos para pruebas.\n', proyectos.id);
-  const file1 = await fileService.uploadFile(juanDoc!._id.toString(), req1);
+  const seedLocations = [
+    { ownerId: juanId, folderId: docsId },
+    { ownerId: juanId, folderId: proyectosId },
+    { ownerId: mariaId, folderId: informesId },
+    { ownerId: adminUserId, folderId: rootAdmin!._id.toString() },
+  ];
+  const existingFiles = await FileModel.countDocuments({});
+  for (let index = existingFiles; index < 50; index += 1) {
+    const location = seedLocations[index % seedLocations.length];
+    const extension = index % 2 === 0 ? 'txt' : 'md';
+    await ensureFile(
+      location.ownerId,
+      location.folderId,
+      `documento-${String(index + 1).padStart(2, '0')}.${extension}`,
+      `Documento de demostración ${index + 1}\nContenido inicial del sistema.\n`,
+      fileService
+    );
+  }
 
-  const req2 = buildMultipart('notas.txt', 'Notas rápidas\n- Item 1\n- Item 2\n', docs.id);
-  await fileService.uploadFile(juanDoc!._id.toString(), req2);
+  const activeFiles = await FileModel.find({ isDeleted: false }).sort({ createdAt: 1 });
+  const users = [juanId, mariaId, adminUserId];
+  const existingShares = await ShareModel.countDocuments({});
+  let sharesCreated = existingShares;
+  for (const file of activeFiles) {
+    if (sharesCreated >= 20) break;
+    const recipients = users.filter((id) => id !== file.ownerId.toString());
+    for (const recipientId of recipients) {
+      if (sharesCreated >= 20) break;
+      const shareExists = await ShareModel.exists({ resourceId: file._id, sharedWithId: recipientId });
+      if (shareExists) continue;
+      await shareService.shareResource(file.ownerId.toString(), {
+        resourceType: 'file',
+        resourceId: file._id.toString(),
+        sharedWithId: recipientId,
+        permission: sharesCreated % 2 === 0 ? 'read' : 'edit',
+      });
+      sharesCreated += 1;
+    }
+  }
 
-  const req3 = buildMultipart('informe.txt', 'Informe mensual\nDatos de prueba.\n', informes.id);
-  await fileService.uploadFile(mariaDoc!._id.toString(), req3);
-
-  const req4 = buildMultipart('bienvenida.txt', 'Bienvenido al sistema\n', rootAdmin!._id.toString());
-  await fileService.uploadFile(admin._id.toString(), req4);
-
-  await shareService.shareResource(juanDoc!._id.toString(), { resourceType: 'file', resourceId: file1.id, sharedWithId: mariaDoc!._id.toString(), permission: 'read' });
+  const existingTrash = await FileModel.countDocuments({ isDeleted: true });
+  const trashNeeded = Math.max(0, 2 - existingTrash);
+  if (trashNeeded > 0) {
+    const trashCandidates = await FileModel.find({ isDeleted: false }).sort({ createdAt: 1 }).limit(trashNeeded);
+    for (const file of trashCandidates) {
+      await fileService.trashFile(file.ownerId.toString(), file._id.toString());
+    }
+  }
 
   const finalAdmin = await ensureUserDoc('admin@docsdrive.local');
   const finalJuan = await ensureUserDoc('juan@docsdrive.local');
@@ -111,8 +175,9 @@ async function main() {
       { email: finalMaria?.email, role: finalMaria?.role, quota: finalMaria?.storage?.quotaBytes },
       { email: finalCarlos?.email, role: finalCarlos?.role, quota: finalCarlos?.storage?.quotaBytes },
     ],
-    files: ['README.md', 'notas.txt', 'informe.txt', 'bienvenida.txt'],
-    share: { from: finalJuan?.email, to: finalMaria?.email, file: file1.name, permission: 'read' },
+    files: await FileModel.countDocuments({}),
+    shares: await ShareModel.countDocuments({}),
+    trash: await FileModel.countDocuments({ isDeleted: true }),
     password: USER_PASS
   }, null, 2));
 

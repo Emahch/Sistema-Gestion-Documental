@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { RestConstants } from './rest-constants';
+import { withOptionalParams } from './http-params';
 import type {
   ActivityAffectedItem,
   ActivityList,
@@ -27,18 +28,7 @@ export class ActivityService {
     let httpParams = new HttpParams()
       .set('resourceType', resourceType)
       .set('resourceId', resourceId);
-    if (params.page !== undefined && params.page !== null) {
-      httpParams = httpParams.set('page', String(params.page));
-    }
-    if (params.limit !== undefined && params.limit !== null) {
-      httpParams = httpParams.set('limit', String(params.limit));
-    }
-    if (params.from) {
-      httpParams = httpParams.set('from', params.from);
-    }
-    if (params.to) {
-      httpParams = httpParams.set('to', params.to);
-    }
+    httpParams = withOptionalParams(httpParams, params);
     return this.http.get<ActivityList<ActivityResourceItem>>(`${this.baseUrl}/activity/resource`, {
       params: httpParams,
     });
@@ -47,19 +37,7 @@ export class ActivityService {
   affected(
     params: { page?: number; limit?: number; from?: string; to?: string } = {},
   ): Observable<ActivityList<ActivityAffectedItem>> {
-    let httpParams = new HttpParams();
-    if (params.page !== undefined && params.page !== null) {
-      httpParams = httpParams.set('page', String(params.page));
-    }
-    if (params.limit !== undefined && params.limit !== null) {
-      httpParams = httpParams.set('limit', String(params.limit));
-    }
-    if (params.from) {
-      httpParams = httpParams.set('from', params.from);
-    }
-    if (params.to) {
-      httpParams = httpParams.set('to', params.to);
-    }
+    const httpParams = withOptionalParams(new HttpParams(), params);
     return this.http.get<ActivityList<ActivityAffectedItem>>(`${this.baseUrl}/activity/affected`, {
       params: httpParams,
     });

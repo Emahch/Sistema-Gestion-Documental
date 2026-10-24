@@ -2,7 +2,7 @@ import type { HydratedDocument, Types } from 'mongoose';
 import { mongoose } from '../config/db';
 import { FolderModel } from '../models/folder.model';
 import { FileModel } from '../models/file.model';
-import { ActivityLogModel } from '../models/activity-log.model';
+import { createActivityLog, createActivityLogs } from '../utils/activity-log';
 import { normalizeName } from '../utils/normalize';
 import type { Folder, PublicFolder } from '../types/folder';
 import type { PublicFile } from '../types/file';
@@ -171,10 +171,8 @@ export class FolderService {
         resourceId: created._id,
         ownerId: created.ownerId,
       });
-      const actorUser = await UserModel.findById(userId, { email: 1 }).lean().catch(() => null);
-      await ActivityLogModel.create({
-        userId: new mongoose.Types.ObjectId(userId),
-        userEmail: actorUser?.email ?? null,
+      await createActivityLog({
+        actorId: userId,
         action: 'FOLDER_CREATE',
         status: 'success',
         resourceType: 'folder',
@@ -224,10 +222,8 @@ export class FolderService {
       resourceId: folder._id,
       ownerId: folder.ownerId,
     });
-    const actorUser = await UserModel.findById(userId, { email: 1 }).lean().catch(() => null);
-    await ActivityLogModel.create({
-      userId: new mongoose.Types.ObjectId(userId),
-      userEmail: actorUser?.email ?? null,
+    await createActivityLog({
+      actorId: userId,
       action: 'RENAME',
       status: 'success',
       resourceType: 'folder',
@@ -305,23 +301,17 @@ export class FolderService {
           resourceId: folder._id,
           ownerId: folder.ownerId,
         });
-        const actorUser = await UserModel.findById(userId, { email: 1 }).lean().catch(() => null);
-        await ActivityLogModel.create(
-          [
-            {
-              userId: new mongoose.Types.ObjectId(userId),
-              userEmail: actorUser?.email ?? null,
-              action: 'MOVE',
-              status: 'success',
-              resourceType: 'folder',
-              resourceId: folder._id,
-              resourceSnapshot: { name: folder.name },
-              details: { previousFolderId: previousParentId, newFolderId: destination._id },
-              affectedUserIds: affected,
-            },
-          ],
-          { session, ordered: true }
-        );
+        await createActivityLog({
+          actorId: userId,
+          action: 'MOVE',
+          status: 'success',
+          resourceType: 'folder',
+          resourceId: folder._id,
+          resourceSnapshot: { name: folder.name },
+          details: { previousFolderId: previousParentId, newFolderId: destination._id },
+          affectedUserIds: affected,
+          session,
+        });
       });
       if (!moved) {
         throw new HttpError(500, 'No se pudo mover la carpeta');
@@ -407,45 +397,41 @@ export class FolderService {
             })
           )
         );
-        const actorUser = await UserModel.findById(userId, { email: 1 }).lean().catch(() => null);
-        await ActivityLogModel.create(
-          [
-            {
-              userId: actorId,
-              userEmail: actorUser?.email ?? null,
-              action: 'TRASH',
-              status: 'success',
-              resourceType: 'folder',
-              resourceId: folder._id,
-              resourceSnapshot: { name: folder.name },
-              details: { deletionId, isDeletionRoot: true },
-              affectedUserIds: folderAffected,
-            },
-            ...descendants.map((child, idx) => ({
-              userId: actorId,
-              userEmail: actorUser?.email ?? null,
-              action: 'TRASH',
-              status: 'success',
-              resourceType: 'folder',
-              resourceId: child._id,
-              resourceSnapshot: { name: child.name },
-              details: { deletionId, isDeletionRoot: false },
-              affectedUserIds: descAffected[idx],
-            })),
-            ...affectedFiles.map((file, idx) => ({
-              userId: actorId,
-              userEmail: actorUser?.email ?? null,
-              action: 'TRASH',
-              status: 'success',
-              resourceType: 'file',
-              resourceId: file._id,
-              resourceSnapshot: { name: file.name },
-              details: { deletionId, isDeletionRoot: false },
-              affectedUserIds: fileAffected[idx],
-            })),
-          ],
-          { session, ordered: true }
-        );
+        await createActivityLogs([
+          {
+            actorId: userId,
+            action: 'TRASH',
+            status: 'success',
+            resourceType: 'folder',
+            resourceId: folder._id,
+            resourceSnapshot: { name: folder.name },
+            details: { deletionId, isDeletionRoot: true },
+            affectedUserIds: folderAffected,
+            session,
+          },
+          ...descendants.map((child, idx) => ({
+            actorId: userId,
+            action: 'TRASH' as const,
+            status: 'success' as const,
+            resourceType: 'folder',
+            resourceId: child._id,
+            resourceSnapshot: { name: child.name },
+            details: { deletionId, isDeletionRoot: false },
+            affectedUserIds: descAffected[idx],
+            session,
+          })),
+          ...affectedFiles.map((file, idx) => ({
+            actorId: userId,
+            action: 'TRASH' as const,
+            status: 'success' as const,
+            resourceType: 'file',
+            resourceId: file._id,
+            resourceSnapshot: { name: file.name },
+            details: { deletionId, isDeletionRoot: false },
+            affectedUserIds: fileAffected[idx],
+            session,
+          })),
+        ]);
       });
       return { deletionId: deletionId.toString(), folders: descendants.length + 1, files: trashedFiles };
     } finally {

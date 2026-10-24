@@ -322,7 +322,7 @@ export class Shared implements OnInit {
         if (target.canEdit) {
           this.editor.openEdit(target.id, target.name, text);
         } else {
-          this.editor.openEdit(target.id, target.name, text);
+          this.editor.openPreview(target.id, target.name, text);
         }
       },
       error: (err: { status?: number }) => {

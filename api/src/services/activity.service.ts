@@ -5,6 +5,7 @@ import { FolderModel } from '../models/folder.model';
 import { FileModel } from '../models/file.model';
 import { ShareModel } from '../models/share.model';
 import { UserModel } from '../models/user.model';
+import type { ActivityLog } from '../types/activity-log';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../errors/http-error';
 import { PermissionService } from './permission.service';
 
@@ -35,6 +36,66 @@ function toDate(value: unknown): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+type ActivityRow = ActivityLog & { _id: Types.ObjectId };
+
+function activityQueryOptions(query: ActivityListQuery): {
+  page: number;
+  limit: number;
+  timestamp?: Record<string, Date>;
+} {
+  const page = toPage(query.page, 1);
+  const limit = toPage(query.limit, 50);
+  const from = toDate(query.from);
+  const to = toDate(query.to);
+  if (!from && !to) {
+    return { page, limit };
+  }
+  const timestamp: Record<string, Date> = {};
+  if (from) timestamp.$gte = from;
+  if (to) timestamp.$lte = to;
+  return { page, limit, timestamp };
+}
+
+async function findActivityPage(
+  filter: Record<string, unknown>,
+  options: ReturnType<typeof activityQueryOptions>
+): Promise<{ data: ActivityRow[]; total: number }> {
+  if (options.timestamp) {
+    filter.timestamp = options.timestamp;
+  }
+  const [data, total] = await Promise.all([
+    ActivityLogModel.find(filter)
+      .sort({ timestamp: -1 })
+      .skip((options.page - 1) * options.limit)
+      .limit(options.limit)
+      .lean(),
+    ActivityLogModel.countDocuments(filter),
+  ]);
+  return { data: data as ActivityRow[], total };
+}
+
+function activityUserId(item: Pick<ActivityLog, 'userId'>): string {
+  const userId = item.userId as unknown;
+  if (userId && typeof userId === 'object' && '_id' in (userId as Record<string, unknown>)) {
+    return String((userId as { _id: Types.ObjectId })._id);
+  }
+  return String(userId);
+}
+
+async function activityEmailMap(data: ActivityRow[]): Promise<Map<string, string>> {
+  const userIds = Array.from(
+    new Set(data.filter((item) => !item.userEmail).map((item) => activityUserId(item)).filter(Boolean))
+  );
+  if (userIds.length === 0) {
+    return new Map();
+  }
+  const users = await UserModel.find(
+    { _id: { $in: userIds.map((id) => new mongoose.Types.ObjectId(id)) } },
+    { email: 1 }
+  ).lean();
+  return new Map(users.map((user) => [String(user._id), user.email]));
+}
+
 export class ActivityService {
   private readonly permissions = new PermissionService();
 
@@ -52,10 +113,7 @@ export class ActivityService {
       throw new BadRequestError('resourceId es obligatorio');
     }
     const rid = toObjectId(resourceId, 'resourceId');
-    const page = toPage(query.page, 1);
-    const limit = toPage(query.limit, 50);
-    const from = toDate(query.from);
-    const to = toDate(query.to);
+    const options = activityQueryOptions(query);
 
     if (!isAdmin) {
       const resource = await this.permissions.findResource(resourceType, resourceId);
@@ -87,50 +145,11 @@ export class ActivityService {
     }
 
     const filter: Record<string, unknown> = { resourceType, resourceId: rid };
-    if (from || to) {
-      const ts: Record<string, unknown> = {};
-      if (from) ts.$gte = from;
-      if (to) ts.$lte = to;
-      filter.timestamp = ts;
-    }
-
-    const [data, total] = await Promise.all([
-      ActivityLogModel.find(filter)
-        .sort({ timestamp: -1 })
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .lean(),
-      ActivityLogModel.countDocuments(filter),
-    ]);
-
-    const userIds = Array.from(
-      new Set(
-        data
-          .map((item) => {
-            if (item.userEmail) return null;
-            const uid = item.userId as unknown;
-            if (uid && typeof uid === 'object' && '_id' in (uid as Record<string, unknown>)) {
-              return String((uid as { _id: Types.ObjectId })._id);
-            }
-            return String(uid);
-          })
-          .filter(Boolean) as string[]
-      )
-    );
-    const userMap = new Map<string, string>();
-    if (userIds.length > 0) {
-      const users = await UserModel.find({ _id: { $in: userIds.map((id) => new mongoose.Types.ObjectId(id)) } }, { email: 1 }).lean();
-      for (const u of users) {
-        userMap.set(String(u._id), u.email);
-      }
-    }
+    const { data, total } = await findActivityPage(filter, options);
+    const userMap = await activityEmailMap(data);
 
     const items = data.map((item) => {
-      const uidObj = item.userId as unknown;
-      const uid =
-        uidObj && typeof uidObj === 'object' && '_id' in (uidObj as Record<string, unknown>)
-          ? String((uidObj as { _id: Types.ObjectId })._id)
-          : String(uidObj);
+      const uid = activityUserId(item);
       const email = item.userEmail || userMap.get(uid) || null;
       return {
         id: item._id.toString(),
@@ -146,67 +165,25 @@ export class ActivityService {
       };
     });
 
-    return { data: items, total, page, limit };
+    return { data: items, total, page: options.page, limit: options.limit };
   }
 
   async affected(userId: string, query: ActivityListQuery) {
     const uid = new mongoose.Types.ObjectId(userId);
-    const page = toPage(query.page, 1);
-    const limit = toPage(query.limit, 50);
-    const from = toDate(query.from);
-    const to = toDate(query.to);
+    const options = activityQueryOptions(query);
 
     const filter: Record<string, unknown> = {
       status: 'success',
-      userId: { $ne: uid },
       $or: [
         { affectedUserIds: uid },
+        { userId: uid },
       ],
     };
-    if (from || to) {
-      const ts: Record<string, unknown> = {};
-      if (from) ts.$gte = from;
-      if (to) ts.$lte = to;
-      filter.timestamp = ts;
-    }
-
-    const [data, total] = await Promise.all([
-      ActivityLogModel.find(filter)
-        .sort({ timestamp: -1 })
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .lean(),
-      ActivityLogModel.countDocuments(filter),
-    ]);
-
-    const userIds = Array.from(
-      new Set(
-        data
-          .map((item) => {
-            if (item.userEmail) return null;
-            const uid = item.userId as unknown;
-            if (uid && typeof uid === 'object' && '_id' in (uid as Record<string, unknown>)) {
-              return String((uid as { _id: Types.ObjectId })._id);
-            }
-            return String(uid);
-          })
-          .filter(Boolean) as string[]
-      )
-    );
-    const userMap = new Map<string, string>();
-    if (userIds.length > 0) {
-      const users = await UserModel.find({ _id: { $in: userIds.map((id) => new mongoose.Types.ObjectId(id)) } }, { email: 1 }).lean();
-      for (const u of users) {
-        userMap.set(String(u._id), u.email);
-      }
-    }
+    const { data, total } = await findActivityPage(filter, options);
+    const userMap = await activityEmailMap(data);
 
     const items = data.map((item) => {
-      const uidObj = item.userId as unknown;
-      const uid =
-        uidObj && typeof uidObj === 'object' && '_id' in (uidObj as Record<string, unknown>)
-          ? String((uidObj as { _id: Types.ObjectId })._id)
-          : String(uidObj);
+      const uid = activityUserId(item);
       const email = item.userEmail || userMap.get(uid) || null;
       return {
         id: item._id.toString(),
@@ -220,7 +197,7 @@ export class ActivityService {
       };
     });
 
-    return { data: items, total, page, limit };
+    return { data: items, total, page: options.page, limit: options.limit };
   }
 }
 

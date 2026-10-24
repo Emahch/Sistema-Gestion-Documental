@@ -27,6 +27,10 @@ export class FolderService {
     return this.http.get<DriveFolder>(`${this.baseUrl}/folders/root`);
   }
 
+  getFile(id: string): Observable<DriveFile> {
+    return this.http.get<DriveFile>(`${this.baseUrl}/files/${id}`);
+  }
+
   breadcrumb(id: string): Observable<DriveFolder[]> {
     return this.http.get<DriveFolder[]>(`${this.baseUrl}/folders/${id}/breadcrumb`);
   }

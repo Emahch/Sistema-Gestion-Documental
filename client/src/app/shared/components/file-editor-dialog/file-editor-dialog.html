@@ -5,22 +5,22 @@
   [resizable]="false"
   [style]="{ width: 'min(1200px, 98vw)', height: 'min(92vh, 950px)' }"
   [contentStyle]="{ height: 'calc(92vh - 140px)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }"
-  [header]="mode() === 'create' ? 'Nuevo archivo' : 'Editar archivo — ' + fileName()"
+  [header]="mode() === 'create' ? 'Nuevo archivo' : (readOnly() ? 'Vista previa — ' : 'Editar archivo — ') + fileName()"
   (onHide)="close()"
 >
   <div class="editor-header">
     @if (mode() === 'create') {
       <div class="field">
         <label>Nombre del archivo (.txt o .md)</label>
-        <input pInputText [(ngModel)]="createName" placeholder="ejemplo.txt o ejemplo.md" />
+        <input pInputText [(ngModel)]="createName" placeholder="ejemplo.txt o ejemplo.md" [readonly]="readOnly()" />
       </div>
     } @else {
       <div class="field">
         <label>Nombre del archivo (.txt o .md)</label>
-        <input pInputText [(ngModel)]="createName" placeholder="ejemplo.txt o ejemplo.md" />
+        <input pInputText [(ngModel)]="createName" placeholder="ejemplo.txt o ejemplo.md" [readonly]="readOnly()" />
       </div>
     }
-    <div class="hint">El contenido se guarda en UTF-8. Puedes cambiar el nombre/extensión al guardar.</div>
+    <div class="hint">{{ readOnly() ? 'Modo de solo lectura.' : 'El contenido se guarda en UTF-8. Puedes cambiar el nombre/extensión al guardar.' }}</div>
     @if (error()) {
       <div class="error">{{ error() }}</div>
     }
@@ -29,6 +29,7 @@
     <textarea
       class="editor-textarea"
       [(ngModel)]="content"
+      [readonly]="readOnly()"
       spellcheck="false"
       autocorrect="off"
       autocapitalize="off"
@@ -36,6 +37,8 @@
   </div>
   <ng-template #footer>
     <p-button label="Cancelar" severity="secondary" (onClick)="close()" [disabled]="saving()" />
-    <p-button [label]="mode() === 'create' ? 'Crear' : 'Guardar'" icon="pi pi-save" (onClick)="save()" [loading]="saving()" />
+    @if (!readOnly()) {
+      <p-button [label]="mode() === 'create' ? 'Crear' : 'Guardar'" icon="pi pi-save" (onClick)="save()" [loading]="saving()" />
+    }
   </ng-template>
 </p-dialog>

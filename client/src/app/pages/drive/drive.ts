@@ -732,7 +732,7 @@ export class Drive implements OnInit {
     }
     this.foldersApi.previewFile(file.id).subscribe({
       next: (text) => {
-        this.editor.openEdit(file.id, file.name, text);
+        this.editor.openPreview(file.id, file.name, text, !this.canEdit(file));
       },
       error: (err: { status?: number }) => {
         this.error.set(

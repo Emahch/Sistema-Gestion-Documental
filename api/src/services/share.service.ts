@@ -5,7 +5,6 @@ import { UserModel } from '../models/user.model';
 import { FolderModel } from '../models/folder.model';
 import { FileModel } from '../models/file.model';
 import { ShareModel } from '../models/share.model';
-import { ActivityLogModel } from '../models/activity-log.model';
 import type { Share, ShareOrigin, SharePermission } from '../types/share';
 import type { Folder } from '../types/folder';
 import {
@@ -17,6 +16,7 @@ import {
 } from '../errors/http-error';
 import { PermissionService, ResourceType } from './permission.service';
 import { computeAffectedUserIds } from './activity.service';
+import { createActivityLog } from '../utils/activity-log';
 
 export interface ShareInput {
   resourceType: unknown;
@@ -149,10 +149,8 @@ export class ShareService {
           resourceId: doc._id,
           ownerId: doc.ownerId,
         });
-        const actorUser = await UserModel.findById(ownerId, { email: 1 }).lean().catch(() => null);
-        await ActivityLogModel.create({
-          userId: new mongoose.Types.ObjectId(ownerId),
-          userEmail: actorUser?.email ?? null,
+        await createActivityLog({
+          actorId: ownerId,
           action: 'SHARE',
           status: 'success',
           resourceType: resourceType === 'folder' ? 'folder' : 'file',
@@ -207,10 +205,8 @@ export class ShareService {
       resourceId: share.resourceId,
       ownerId: share.ownerId,
     });
-    const actorUser = await UserModel.findById(ownerId, { email: 1 }).lean().catch(() => null);
-    await ActivityLogModel.create({
-      userId: new mongoose.Types.ObjectId(ownerId),
-      userEmail: actorUser?.email ?? null,
+    await createActivityLog({
+      actorId: ownerId,
       action: 'PERMISSION_CHANGE',
       status: 'success',
       resourceType: share.resourceType === 'folder' ? 'folder' : 'file',
@@ -250,10 +246,8 @@ export class ShareService {
       resourceId: share.resourceId,
       ownerId: share.ownerId,
     });
-    const actorUser = await UserModel.findById(ownerId, { email: 1 }).lean().catch(() => null);
-    await ActivityLogModel.create({
-      userId: new mongoose.Types.ObjectId(ownerId),
-      userEmail: actorUser?.email ?? null,
+    await createActivityLog({
+      actorId: ownerId,
       action: 'UNSHARE',
       status: 'success',
       resourceType: share.resourceType === 'folder' ? 'folder' : 'file',

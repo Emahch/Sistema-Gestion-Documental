@@ -6,7 +6,6 @@ import { UserModel } from '../models/user.model';
 import { FolderModel } from '../models/folder.model';
 import { FileModel } from '../models/file.model';
 import { ShareModel } from '../models/share.model';
-import { ActivityLogModel } from '../models/activity-log.model';
 import { normalizeName } from '../utils/normalize';
 import { deleteGridFsObject, parseUpload } from '../utils/upload';
 import type { File, PublicFile } from '../types/file';
@@ -21,6 +20,7 @@ import {
 import path from 'path';
 import { PermissionService, RequiredPermission } from './permission.service';
 import { computeAffectedUserIds } from './activity.service';
+import { createActivityLog } from '../utils/activity-log';
 
 const ownerEmailCache = new Map<string, string | null>();
 
@@ -154,22 +154,17 @@ export class FileService {
           resourceId: created._id,
           ownerId: created.ownerId,
         });
-        await ActivityLogModel.create(
-          [
-            {
-              userId: ownerId,
-              userEmail: me.email,
-              action: 'UPLOAD',
-              status: 'success',
-              resourceType: 'file',
-              resourceId: created._id,
-              resourceSnapshot: { name: created.name },
-              details: { gridFsId: uploaded.gridFsId, size: uploaded.size, folderId: folder._id },
-              affectedUserIds: affected,
-            },
-          ],
-          { session, ordered: true }
-        );
+        await createActivityLog({
+          actorId: userId,
+          action: 'UPLOAD',
+          status: 'success',
+          resourceType: 'file',
+          resourceId: created._id,
+          resourceSnapshot: { name: created.name },
+          details: { gridFsId: uploaded.gridFsId, size: uploaded.size, folderId: folder._id },
+          affectedUserIds: affected,
+          session,
+        });
         if (folder.ownerId.toString() !== userId) {
           await ShareModel.findOneAndUpdate(
             { resourceId: created._id, sharedWithId: folder.ownerId },
@@ -184,21 +179,17 @@ export class FileService {
             },
             { new: true, upsert: true, runValidators: true, session }
           );
-          await ActivityLogModel.create(
-            [
-              {
-                userId: ownerId,
-                action: 'SHARE',
-                status: 'success',
-                resourceType: 'file',
-                resourceId: created._id,
-                resourceSnapshot: { name: created.name },
-                details: { sharedWithId: folder.ownerId, permission: 'edit', origin: 'auto' },
-                affectedUserIds: [folder.ownerId],
-              },
-            ],
-            { session, ordered: true }
-          );
+          await createActivityLog({
+            actorId: userId,
+            action: 'SHARE',
+            status: 'success',
+            resourceType: 'file',
+            resourceId: created._id,
+            resourceSnapshot: { name: created.name },
+            details: { sharedWithId: folder.ownerId, permission: 'edit', origin: 'auto' },
+            affectedUserIds: [folder.ownerId],
+            session,
+          });
         }
       });
       if (!created) {
@@ -226,10 +217,8 @@ export class FileService {
 
   async downloadFile(userId: string, id: string, res: Response): Promise<Readable> {
     const file = await this.accessibleFile(userId, id, 'read');
-    const actorUser = await UserModel.findById(userId, { email: 1 }).lean().catch(() => null);
-    await ActivityLogModel.create({
-      userId: new mongoose.Types.ObjectId(userId),
-      userEmail: actorUser?.email ?? null,
+    await createActivityLog({
+      actorId: userId,
       action: 'DOWNLOAD',
       status: 'success',
       resourceType: 'file',
@@ -272,10 +261,8 @@ export class FileService {
     if (!file) {
       return;
     }
-    const actorUser = await UserModel.findById(userId, { email: 1 }).lean().catch(() => null);
-    await ActivityLogModel.create({
-      userId: new mongoose.Types.ObjectId(userId),
-      userEmail: actorUser?.email ?? null,
+    await createActivityLog({
+      actorId: userId,
       action: 'DOWNLOAD',
       status: 'error',
       resourceType: 'file',
@@ -302,7 +289,7 @@ export class FileService {
       }
     }
     const session = await mongoose.startSession();
-    const actorUser = await UserModel.findById(userId, { email: 1 }).lean().catch(() => null);
+
     try {
       let updated: HydratedDocument<File> | undefined;
       await session.withTransaction(async () => {
@@ -337,22 +324,17 @@ export class FileService {
           resourceId: file._id,
           ownerId: file.ownerId,
         });
-        await ActivityLogModel.create(
-          [
-            {
-              userId: new mongoose.Types.ObjectId(userId),
-              userEmail: actorUser?.email ?? null,
-              action: 'EDIT_CONTENT',
-              status: 'success',
-              resourceType: 'file',
-              resourceId: file._id,
-              resourceSnapshot: { name: cleanName },
-              details: { previousGridFsId, newGridFsId: uploaded.gridFsId, previousSize, newSize: uploaded.size, previousName },
-              affectedUserIds: affected,
-            },
-          ],
-          { session, ordered: true }
-        );
+        await createActivityLog({
+          actorId: userId,
+          action: 'EDIT_CONTENT',
+          status: 'success',
+          resourceType: 'file',
+          resourceId: file._id,
+          resourceSnapshot: { name: cleanName },
+          details: { previousGridFsId, newGridFsId: uploaded.gridFsId, previousSize, newSize: uploaded.size, previousName },
+          affectedUserIds: affected,
+          session,
+        });
       });
       if (!updated) {
         throw new HttpError(500, 'No se pudo editar el archivo');
@@ -399,10 +381,8 @@ export class FileService {
       resourceId: file._id,
       ownerId: file.ownerId,
     });
-    const actorUser = await UserModel.findById(userId, { email: 1 }).lean().catch(() => null);
-    await ActivityLogModel.create({
-      userId: new mongoose.Types.ObjectId(userId),
-      userEmail: actorUser?.email ?? null,
+    await createActivityLog({
+      actorId: userId,
       action: 'RENAME',
       status: 'success',
       resourceType: 'file',
@@ -448,10 +428,8 @@ export class FileService {
       resourceId: file._id,
       ownerId: file.ownerId,
     });
-    const actorUser = await UserModel.findById(userId, { email: 1 }).lean().catch(() => null);
-    await ActivityLogModel.create({
-      userId: new mongoose.Types.ObjectId(userId),
-      userEmail: actorUser?.email ?? null,
+    await createActivityLog({
+      actorId: userId,
       action: 'MOVE',
       status: 'success',
       resourceType: 'file',
@@ -481,23 +459,17 @@ export class FileService {
           resourceId: file._id,
           ownerId: file.ownerId,
         });
-        const actorUser = await UserModel.findById(userId, { email: 1 }).lean().catch(() => null);
-        await ActivityLogModel.create(
-          [
-            {
-              userId: new mongoose.Types.ObjectId(userId),
-              userEmail: actorUser?.email ?? null,
-              action: 'TRASH',
-              status: 'success',
-              resourceType: 'file',
-              resourceId: file._id,
-              resourceSnapshot: { name: file.name },
-              details: { deletionId, isDeletionRoot: true },
-              affectedUserIds: affected,
-            },
-          ],
-          { session, ordered: true }
-        );
+        await createActivityLog({
+          actorId: userId,
+          action: 'TRASH',
+          status: 'success',
+          resourceType: 'file',
+          resourceId: file._id,
+          resourceSnapshot: { name: file.name },
+          details: { deletionId, isDeletionRoot: true },
+          affectedUserIds: affected,
+          session,
+        });
       });
     } finally {
       await session.endSession();

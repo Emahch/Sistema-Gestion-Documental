@@ -38,12 +38,13 @@ export function createDriveRowActions(item: DriveViewItem, context: DriveActionC
     }
 
     const file = item.data as DriveFile;
+    const canEditFile = context.canEdit(file);
     const actions: DriveViewAction[] = [
-        { id: 'preview', icon: 'pi pi-eye', label: 'Abrir / Editar', severity: 'secondary' },
+        { id: 'preview', icon: 'pi pi-eye', label: canEditFile ? 'Abrir / Editar' : 'Vista previa', severity: 'secondary' },
         { id: 'download', icon: 'pi pi-download', label: 'Descargar archivo', severity: 'secondary' },
         { id: 'history', icon: 'pi pi-history', label: 'Historial', severity: 'secondary' },
     ];
-    if (context.canEdit(file)) {
+    if (canEditFile) {
         actions.push({ id: 'rename', icon: 'pi pi-pencil', label: 'Renombrar archivo', severity: 'secondary' });
         actions.push({ id: 'move', icon: 'pi pi-send', label: 'Mover archivo', severity: 'secondary' });
     }
@@ -92,8 +93,9 @@ export function createFolderMenuItems(folder: DriveFolder, context: DriveActionC
 }
 
 export function createFileMenuItems(file: DriveFile, context: DriveActionContext): MenuItem[] {
+    const canEditFile = context.canEdit(file);
     const items: MenuItem[] = [
-        { label: 'Abrir / Editar', icon: 'pi pi-file-edit', command: () => context.openFile(file) },
+        { label: canEditFile ? 'Abrir / Editar' : 'Vista previa', icon: 'pi pi-eye', command: () => context.openFile(file) },
         { label: 'Descargar', icon: 'pi pi-download', command: () => context.openDownloadFile(file) },
         {
             label: 'Historial',
@@ -107,7 +109,7 @@ export function createFileMenuItems(file: DriveFile, context: DriveActionContext
                 }),
         },
     ];
-    if (context.canEdit(file)) {
+    if (canEditFile) {
         items.push(
             { label: 'Renombrar', icon: 'pi pi-pencil', command: () => context.openRenameFile(file) },
             { label: 'Mover', icon: 'pi pi-send', command: () => context.openMoveFile(file) },

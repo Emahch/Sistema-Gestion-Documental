@@ -2,6 +2,9 @@
   <div class="header">
     <h2>Actividad que me afecta</h2>
   </div>
+  @if (error) {
+    <div class="error">{{ error }}</div>
+  }
 
   <p-table [value]="items" [loading]="loading" [paginator]="true" [rows]="limit" [first]="(page - 1) * limit" [totalRecords]="total" [lazy]="true" (onLazyLoad)="page = ($event.first / $event.rows) + 1; limit = $event.rows; load()" [rowsPerPageOptions]="[25,50,100]">
     <ng-template pTemplate="header">
@@ -20,7 +23,11 @@
         <td>{{ item.action }}</td>
         <td>{{ item.resourceType }}</td>
         <td>
-          <a [routerLink]="'/drive'" [queryParams]="{ folderId: goToResource(item) }">{{ item.resourceSnapshot?.['name'] || item.resourceId }}</a>
+          @if (item.resourceType === 'folder') {
+            <a [routerLink]="'/drive'" [queryParams]="{ folderId: goToResource(item) }">{{ item.resourceSnapshot?.['name'] || item.resourceId }}</a>
+          } @else {
+            <button type="button" class="resource-link" (click)="openResource(item)">{{ item.resourceSnapshot?.['name'] || item.resourceId }}</button>
+          }
         </td>
       </tr>
     </ng-template>
@@ -30,4 +37,5 @@
       </tr>
     </ng-template>
   </p-table>
+  <app-file-editor-dialog />
 </div>

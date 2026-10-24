@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { RestConstants } from './rest-constants';
+import { withOptionalParams } from './http-params';
 
 export interface SearchResultItem {
   id: string;
@@ -45,16 +46,10 @@ export class SearchService {
     page = 1,
     limit = 50,
   ): Observable<SearchResult> {
-    let params = new HttpParams().set('scope', scope).set('page', String(page)).set('limit', String(limit));
-    if (filters.category) {
-      params = params.set('category', filters.category);
-    }
-    if (filters.from) {
-      params = params.set('from', filters.from);
-    }
-    if (filters.to) {
-      params = params.set('to', filters.to);
-    }
+    const params = withOptionalParams(
+      new HttpParams().set('scope', scope).set('page', String(page)).set('limit', String(limit)),
+      filters,
+    );
     return this.http.get<SearchResult>(`${this.baseUrl}/files/filter`, { params });
   }
 }
