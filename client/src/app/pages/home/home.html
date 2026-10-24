@@ -3,7 +3,8 @@
     <p class="m-0">Sesión iniciada como <strong>{{ auth.currentUser()?.email }}</strong> (rol: {{ auth.currentUser()?.role }}).</p>
     <ng-template #footer>
       @if (auth.isAdmin()) {
-        <p-button label="Administrar usuarios" icon="pi pi-users" routerLink="/users" />
+        <p-button label="Administrar usuarios" icon="pi pi-users" routerLink="/users" class="home-action" />
+        <p-button label="Ver reportes" icon="pi pi-chart-bar" routerLink="/reports" severity="secondary" class="home-action" />
       }
     </ng-template>
   </p-card>

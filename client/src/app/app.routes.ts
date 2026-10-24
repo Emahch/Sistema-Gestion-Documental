@@ -9,6 +9,7 @@ import { Trash } from './pages/trash/trash';
 import { Users } from './pages/users/users';
 import { ActivityHistory } from './pages/activity/history/history';
 import { ActivityAffected } from './pages/activity/affected/affected';
+import { Reports } from './pages/reports/reports';
 
 export const routes: Routes = [
   { path: 'login', component: Login, canActivate: [visitorGuard] },
@@ -25,6 +26,7 @@ export const routes: Routes = [
       { path: 'activity', component: ActivityHistory },
       { path: 'activity/affected', component: ActivityAffected },
       { path: 'users', component: Users, canActivate: [adminGuard] },
+      { path: 'reports', component: Reports, canActivate: [adminGuard] },
     ],
   },
   { path: '**', redirectTo: '' },

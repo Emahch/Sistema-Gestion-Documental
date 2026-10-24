@@ -1,3 +1,7 @@
 .home {
   max-width: 40rem;
 }
+
+.home-action {
+  margin-right: 0.5rem;
+}

@@ -13,6 +13,7 @@ import shareRouter from './routes/share.routes';
 import trashRouter from './routes/trash.routes';
 import activityRouter from './routes/activity.routes';
 import searchRouter from './routes/search.routes';
+import reportRouter from './routes/report.routes';
 
 const app = express();
 
@@ -51,6 +52,7 @@ app.use('/api/shares', shareRouter);
 app.use('/api/trash', trashRouter);
 app.use('/api/activity', activityRouter);
 app.use('/api/search', searchRouter);
+app.use('/api/reports', reportRouter);
 
 app.use(notFound);
 app.use(errorHandler);
